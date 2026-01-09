@@ -47,10 +47,10 @@ class DroneEnv(gym.Env):
         self.inertial_inv = np.linalg.inv(self.inertial)
 
 
-        self.duration = 20.0     # 仿真时长
+        self.duration = 30.0     # 仿真时长
         position_frequency = 20.0
         self.dt = 1.0 / position_frequency  # 控制采样间隔
-        hovering_throttle = 0.4     # 悬停油门
+        hovering_throttle = 0.2     # 悬停油门
         self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
 
         # 设置状态约束边界
@@ -117,6 +117,7 @@ class DroneEnv(gym.Env):
 
 
 
+
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, state: Optional[State_struct]=None):
         super().reset(seed=seed)
 
@@ -160,12 +161,15 @@ class DroneEnv(gym.Env):
 
 
         # publish 角速度命令
+        if self.seq == 1:
+            self.flightModeService(custom_mode='OFFBOARD')
         self.att_pub()
         self.rate.sleep()
 
         self.state.pos = self.pos.copy()
         self.state.vel = self.vel.copy()
-        self.state.att = R.from_quat(self.quat).as_euler('zyx').copy()
+        yaw, pitch, roll = R.from_quat(self.quat).as_euler('zyx')
+        self.state.att = np.array([roll, pitch, yaw])
         self.state.ang = self.ang.copy()
 
         self.obs.get_error(self.state, state_des)
@@ -180,7 +184,8 @@ class DroneEnv(gym.Env):
         terminated = False  # only current reward
         truncated = self.state.time > self.duration  # with future reward
 
-        info = {"obs": self.obs, }
+        info = {"obs": self.obs, 
+                "obs_flag": True }
 
         return observation, reward, terminated, truncated, info
         
@@ -265,7 +270,6 @@ class DroneEnv(gym.Env):
         self.att_mixer.type_mask = AttitudeTarget.IGNORE_ATTITUDE
         self.body_target_pub.publish(self.att_mixer)
 
-
     def att_pub(self):
         qx, qy, qz, qw = euler_to_quaternion(self.att_des)
         self.att_mixer.orientation.w = qw
@@ -276,7 +280,6 @@ class DroneEnv(gym.Env):
         print(f'Throttle is {self.throttle}.')
         self.att_mixer.type_mask = AttitudeTarget.IGNORE_ROLL_RATE + AttitudeTarget.IGNORE_PITCH_RATE + AttitudeTarget.IGNORE_YAW_RATE
         self.body_target_pub.publish(self.att_mixer)
-
 
             
 
