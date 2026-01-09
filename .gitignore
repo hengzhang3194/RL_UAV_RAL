@@ -1,0 +1,10 @@
+# 忽略 TensorBoard 文件夹
+tensorboard/
+# 忽略 Python 缓存
+__pycache__/
+# # 忽略 PyCharm 或 VSCode 配置
+# .idea/
+# .vscode/
+# # 忽略数据集或模型权重（如果很大）
+# *.pth
+# *.pkl
