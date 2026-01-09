@@ -182,7 +182,7 @@ class Controller:
             hidden_size=[256, 256]
 
             # pi_model_path = 'policy/rl_8h/pi.pth'
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260108_164139/ckpts/latest/pi.pth' 
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260108_164139/ckpts/5000/pi.pth' 
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 

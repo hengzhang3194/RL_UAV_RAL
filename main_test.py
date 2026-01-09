@@ -40,7 +40,7 @@ while (drone.state.time <= drone.duration):
 
     if drone.state.time < 10.0:
         desired_trajectory = desired_trajectory1
-        controller = controller2
+        controller = controller1
     else:
         desired_trajectory = desired_trajectory2
         controller = controller2

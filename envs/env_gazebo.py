@@ -120,6 +120,8 @@ class DroneEnv(gym.Env):
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, state: Optional[State_struct]=None):
         super().reset(seed=seed)
 
+        self.flightModeService(custom_mode='OFFBOARD')
+
         # define initial state
         self.state = State_struct(
                     pos=np.array([0.0, 0.0, 0.0]),
@@ -159,6 +161,7 @@ class DroneEnv(gym.Env):
 
         # publish 角速度命令
         self.att_pub()
+        self.rate.sleep()
 
         self.state.pos = self.pos.copy()
         self.state.vel = self.vel.copy()
@@ -254,7 +257,6 @@ class DroneEnv(gym.Env):
 
 
     def ang_pub(self):
-        self.flightModeService(custom_mode='OFFBOARD')
         ang = self.ang_des
         self.att_mixer.body_rate.x = ang[0]
         self.att_mixer.body_rate.y = ang[1]
@@ -262,10 +264,9 @@ class DroneEnv(gym.Env):
         self.att_mixer.thrust = self.throttle
         self.att_mixer.type_mask = AttitudeTarget.IGNORE_ATTITUDE
         self.body_target_pub.publish(self.att_mixer)
-        self.rate.sleep()
+
 
     def att_pub(self):
-        self.flightModeService(custom_mode='OFFBOARD')
         qx, qy, qz, qw = euler_to_quaternion(self.att_des)
         self.att_mixer.orientation.w = qw
         self.att_mixer.orientation.x = qx
@@ -275,7 +276,7 @@ class DroneEnv(gym.Env):
         print(f'Throttle is {self.throttle}.')
         self.att_mixer.type_mask = AttitudeTarget.IGNORE_ROLL_RATE + AttitudeTarget.IGNORE_PITCH_RATE + AttitudeTarget.IGNORE_YAW_RATE
         self.body_target_pub.publish(self.att_mixer)
-        self.rate.sleep()
+
 
             
 
