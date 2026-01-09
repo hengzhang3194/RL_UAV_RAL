@@ -10,7 +10,8 @@ import time
 import pdb
 
 from collections import defaultdict
-from envs.env_flare import DroneEnv as DroneEnv_flare
+from envs.env_gazebo import DroneEnv as DroneEnv_gazebo
+# from envs.env_flare import DroneEnv as DroneEnv_flare
 from envs.env_model import DroneEnv as DroneEnv_model
 from envs.env_nonlinear_model import DroneEnv as DroneEnv_nomodel
 from envs.desired_trajectory import Desired_trajectory
@@ -18,9 +19,9 @@ from envs.controller import Controller
 # from envs.env_gazebo import DroneEnv
 
 
-drone = DroneEnv_flare()
-controller1 = Controller(controller_flag='NFC')
-controller2 = Controller(controller_flag='RL')
+drone = DroneEnv_gazebo()
+controller1 = Controller(controller_flag='NFC_gazebo')
+controller2 = Controller(controller_flag='RL_gazebo')
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
 
@@ -43,7 +44,7 @@ while (drone.state.time <= drone.duration):
         controller = controller2
     else:
         desired_trajectory = desired_trajectory2
-        controller = controller2
+        controller = controller1
 
 
     # 获取当前时刻的期望轨迹的信息
