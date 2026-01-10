@@ -120,6 +120,7 @@ class DroneEnv(gym.Env):
         self.tau_pitch = action[2]
         self.tau_yaw = action[3]
 
+        # 考虑控制器时延
         alpha = min(self.dt / self.actuator_tau, 1.0)
         self.actual_action = self.actual_action + alpha * (action - self.actual_action)
         action = self.actual_action

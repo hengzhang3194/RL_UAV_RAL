@@ -73,16 +73,16 @@ while steps <= max_steps:
     inertial = np.array([0.003686, 0.003686, 0.006824])
 
 
-    # # 1. 质量随机化 (例如上下浮动 15%)
-    # mass_factor = np.random.uniform(0.5, 3)
-    # drone.mass = mass * mass_factor
+    # 1. 质量随机化 (例如上下浮动 15%)
+    mass_factor = np.random.uniform(0.8, 1.2)
+    drone.mass = mass * mass_factor
     
-    # # 2. 转动惯量随机化 (通常各轴独立扰动 10%)
-    # # 惯量必须保持正定，所以建议使用乘法扰动
-    # inertia_factors = np.random.uniform(0.5, 2.0, size=3)
-    # current_inertia = inertial * inertia_factors
-    # drone.inertial = np.diag(current_inertia)
-    # drone.inertial_inv = np.linalg.inv(drone.inertial)
+    # 2. 转动惯量随机化 (通常各轴独立扰动 10%)
+    # 惯量必须保持正定，所以建议使用乘法扰动
+    inertia_factors = np.random.uniform(0.8, 1.2, size=3)
+    current_inertia = inertial * inertia_factors
+    drone.inertial = np.diag(current_inertia)
+    drone.inertial_inv = np.linalg.inv(drone.inertial)
     
     start_timestamp = time.perf_counter()
     # pdb.set_trace()
@@ -97,8 +97,12 @@ while steps <= max_steps:
         while not obs_flag:
             att = next_obs[6:9] + state_des.att
             ang = next_obs[9:] + state_des.ang
-            scale = np.array([6, 6, 13])    # 13 = 1.32*9.8
-            act_att = scale * np.array([action[0], action[1], action[2]+1])
+            # scale = np.array([6, 6, 13])    # 13 = 1.32*9.8
+            act_att = np.zeros(3)
+            act_att[0] = action[0] * 0.5 * drone.mass * drone.g
+            act_att[1] = action[1] * 0.5 * drone.mass * drone.g
+            act_att[2] = (action[2] + 1) * drone.mass * drone.g
+            # act_att = scale * np.array([action[0], action[1], action[2]+1])
             act_att = controller_att.NFC_att(act_att, att, ang, state_des)
             next_obs, reward, terminated, truncated, info = drone.step(act_att, state_des)
             obs_flag = info["obs_flag"]
