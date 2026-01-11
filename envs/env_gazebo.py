@@ -120,7 +120,7 @@ class DroneEnv(gym.Env):
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, state: Optional[State_struct]=None):
         super().reset(seed=seed)
-        
+
         # define initial state
         self.state = State_struct(
                     pos=np.array([0.0, 0.0, 0.0]),
@@ -143,7 +143,8 @@ class DroneEnv(gym.Env):
         observation = np.concatenate([self.obs.pos, 
                                       self.obs.vel,
                                       self.obs.att,
-                                      self.obs.ang], axis=0)
+                                      self.obs.ang,
+                                      self.state.att], axis=0)
         return observation, self.obs
 
 
@@ -175,7 +176,8 @@ class DroneEnv(gym.Env):
         observation = np.concatenate([self.obs.pos, 
                                       self.obs.vel,
                                       self.obs.att,
-                                      self.obs.ang], axis=0)
+                                      self.obs.ang,
+                                      self.state.att], axis=0)
         
         reward = 0.0
 
