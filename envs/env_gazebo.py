@@ -120,9 +120,7 @@ class DroneEnv(gym.Env):
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, state: Optional[State_struct]=None):
         super().reset(seed=seed)
-
-        self.flightModeService(custom_mode='OFFBOARD')
-
+        
         # define initial state
         self.state = State_struct(
                     pos=np.array([0.0, 0.0, 0.0]),

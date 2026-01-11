@@ -177,12 +177,12 @@ class Controller:
 
         elif self.controller_flag == 'RL':
             # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 12
+            obs_dims = 15
             act_dims = 3
             hidden_size=[256, 256]
 
             # pi_model_path = 'policy/rl_8h/pi.pth'
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260109_233228/ckpts/5000/pi.pth' 
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/latest/pi.pth' 
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -750,22 +750,17 @@ class Controller:
     #####################################
     def RL(self, obs_flag, state_des):
         if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error, self.att))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             std = log_std.exp()
             
-            deterministic=True
-            if deterministic:
-                action = torch.tanh(mean)
-            else:
-                z = Normal(0, 1).sample(mean.shape).to(self.device)
-                action = torch.tanh(mean + std * z)
-            action = action.detach().cpu().numpy()
+            action = torch.tanh(mean).detach().cpu().numpy()
                 
             # RL controller 处理
-            scale = np.array([6, 6, 13])    # 13 = 1.32*9.8
-            self.force_controller = scale * np.array([action[0], action[1], action[2]+1])
+            self.force_controller[0] = action[0] * 0.5 * self.mass * self.g
+            self.force_controller[1] = action[1] * 0.5 * self.mass * self.g
+            self.force_controller[2] = (action[2] + 1) * self.mass * self.g
 
 
         action = self.force_controller

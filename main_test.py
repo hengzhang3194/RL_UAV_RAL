@@ -20,8 +20,8 @@ from envs.controller import Controller
 
 
 drone = DroneEnv_flare()
-controller1 = Controller(controller_flag='RL_MRAC')
-controller2 = Controller(controller_flag='RL_MRAC')
+controller1 = Controller(controller_flag='NFC')
+controller2 = Controller(controller_flag='RL')
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
 
@@ -41,7 +41,7 @@ while (drone.state.time <= drone.duration):
 
     if drone.state.time < 10.0:
         desired_trajectory = desired_trajectory1
-        controller = controller2
+        controller = controller1
     else:
         desired_trajectory = desired_trajectory2
         controller = controller2

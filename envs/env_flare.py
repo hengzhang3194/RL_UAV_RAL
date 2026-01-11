@@ -107,7 +107,8 @@ class DroneEnv(gym.Env):
         observation = np.concatenate([self.obs.pos, 
                                       self.obs.vel,
                                       self.obs.att,
-                                      self.obs.ang], axis=0)
+                                      self.obs.ang,
+                                      self.state.att], axis=0)
         return observation, self.obs
 
 
@@ -172,7 +173,8 @@ class DroneEnv(gym.Env):
         observation = np.concatenate([self.obs.pos, 
                                       self.obs.vel,
                                       self.obs.att,
-                                      self.obs.ang], axis=0)
+                                      self.obs.ang,
+                                      self.state.att], axis=0)
 
         if obs_flag:
             reward = self.reward(self.obs)
