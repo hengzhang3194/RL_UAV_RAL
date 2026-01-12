@@ -107,8 +107,8 @@ class Controller:
             self.kr = np.zeros((3, 3))
             self.theta = np.zeros((6, 3))  
             self.gamma_x = 0.005 * np.eye(6)
-            self.gamma_r = 0.0003 * np.eye(3)
-            self.gamma_theta = 0.0003 * np.eye(6)
+            self.gamma_r = 0.003 * np.eye(3)
+            self.gamma_theta = 0.003 * np.eye(6)
             self.Q = -900 * np.eye(6)  # Q 必须是对称的
             # 求解 Lyapunov 方程
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
@@ -182,7 +182,7 @@ class Controller:
             hidden_size=[256, 256]
 
             # pi_model_path = 'policy/rl_8h/pi.pth'
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/latest/pi.pth' 
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -262,10 +262,52 @@ class Controller:
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
 
             ############ 从文件中读取控制器参数的初值
-            # data_gain = np.load('Data/controller_gains.npz')
-            # self.kx = data_gain['kx'][-1].reshape(3, 6)
-            # self.kr = data_gain['kr'][-1].reshape(3, 3)
-            # self.theta = data_gain['theta'][-1].reshape(6, 3)
+            data_gain = np.load('Data/controller_gains.npz')
+            self.kx = data_gain['kx'][-1].reshape(3, 6)
+            self.kr = data_gain['kr'][-1].reshape(3, 3)
+            self.theta = data_gain['theta'][-1].reshape(6, 3)
+
+            # load RL data
+            RL_data = pd.read_csv('Data/RL_data.csv')
+
+            self.pos_ref_all = RL_data[['pos_x', 'pos_y', 'pos_z']].to_numpy()
+            self.vel_ref_all = RL_data[['vel_x', 'vel_y', 'vel_z']].to_numpy()
+            self.ref_input_all = RL_data[['force_x', 'force_y', 'force_z']].to_numpy()
+            self.ref_time_all = RL_data['time'].to_numpy()
+
+        elif self.controller_flag == 'RL_MRAC_gazebo':
+            # system matrix of reference model
+            self.Am_k = 3
+            self.A = np.block([
+                [np.zeros((3, 3)), np.eye(3)],   # 第一行
+                [np.zeros((3, 3)), np.zeros((3, 3))]  # 第二行
+                ])
+            self.B = np.block([
+                [np.zeros((3, 3))],   # 第一行
+                [np.eye(3) / self.mass]  # 第二行
+                ])
+            self.C = np.block([
+                np.eye(3), np.zeros((3, 3))])
+            self.Am = np.block([
+                [np.zeros((3, 3)), np.eye(3)],   # 第一行
+                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]  # 第二行
+                ])
+            
+            # 位置环采取MRAC，姿态环采取非线性反馈控制
+            self.kx = np.zeros((3, 6))     
+            self.kr = np.zeros((3, 3))
+            self.theta = np.zeros((6, 3))  
+            self.gamma_x = 0.005 * np.eye(6)
+            self.gamma_r = 0.0003 * np.eye(3)
+            self.gamma_theta = 0.0003 * np.eye(6)
+            self.Q = -900 * np.eye(6)  # Q 必须是对称的
+            self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
+
+            ############ 从文件中读取控制器参数的初值
+            data_gain = np.load('Data/controller_gains.npz')
+            self.kx = data_gain['kx'][-1].reshape(3, 6)
+            self.kr = data_gain['kr'][-1].reshape(3, 3)
+            self.theta = data_gain['theta'][-1].reshape(6, 3)
 
             # load RL data
             RL_data = pd.read_csv('Data/RL_data.csv')
@@ -281,12 +323,6 @@ class Controller:
             self.kx = np.zeros((4, 12))     
             self.kr = np.zeros((4, 4))
             self.theta = np.zeros((12, 4))  
-
-            ############ 从文件中读取控制器参数的初值
-            # data_gain = np.load(path+'.npz')
-            # self.kx = data_gain['kx'][-1].reshape(3, 6)
-            # self.kr = data_gain['kr'][-1].reshape(3, 3)
-            # self.theta = data_gain['theta'][-1].reshape(6, 3)
 
             # 系统线性化矩阵
             self.A = np.zeros((12, 12))
@@ -321,9 +357,7 @@ class Controller:
             self.Q = -1200 * np.eye(12)  # Q 必须是对称的
             # 求解 Lyapunov 方程
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
-        
-            # 读取rl训练好的数据（参考信号和参考输出）
-            # self.rl_data = load_csv_data('Data/rl_data.csv')
+
 
         elif self.controller_flag == 'NFC_regressor':
             # self.theta_hat = np.array([
@@ -425,15 +459,21 @@ class Controller:
 
         elif self.controller_flag == 'MRAC':
             self.ref_input = self.pos_des
-            self.model_update()
+            self.model_linear_update()
             action = self.mrac_controller(obs_flag, state_des)  
         elif self.controller_flag == 'RL_MRAC':
             index = round(self.time / self.dt)
             self.pos_ref = self.pos_ref_all[index]
             self.vel_ref = self.vel_ref_all[index]
             self.ref_input = self.ref_input_all[index]
-            self.model_update()
-            action = self.mrac_controller(obs_flag, state_des)          
+            action = self.mrac_controller(obs_flag, state_des)  
+        elif self.controller_flag == 'RL_MRAC_gazebo':
+            index = round(self.time / self.dt)
+            self.pos_ref = self.pos_ref_all[index]
+            self.vel_ref = self.vel_ref_all[index]
+            self.ref_input = self.ref_input_all[index]
+            action = self.mrac_gazebo(obs_flag, state_des) 
+
         elif self.controller_flag == 'NFC_regressor':
             action = self.NFC_regressor(obs_flag, state_des)
 
@@ -634,7 +674,7 @@ class Controller:
             self.theta = self.theta + theta_update * self.dt * 10
             self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
 
-            # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G  - self.Am_k*pos - self.Am_k*vel
+            # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G  - self.Am_k * state[0:3] - self.Am_k * state[3:6]
             thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G
             
             # Control constrain
@@ -650,8 +690,45 @@ class Controller:
         action = self.controller_att.NFC_att(action, self.att, self.ang, state_des)
 
         return action
+    
+    #####################################
+    # MRAC for Gazebo
+    #####################################
+    def mrac_gazebo(self, obs_flag, state_des):
+        ### Translation control
+        self.pos_error = self.pos_ref - self.pos
+        self.vel_error = self.vel_ref - self.vel
+        error = np.hstack((self.pos_error, self.vel_error)).reshape(-1,1)
+        state = np.hstack((self.pos, self.vel)).reshape(-1,1)
+        ref_input = self.ref_input.reshape(-1,1)
+        phi = np.hstack((self.pos, self.vel)).reshape(-1,1)
+
+        kx_update = self.gamma_x @ state @ error.T @ self.P @ self.B
+        kr_update = self.gamma_r @ ref_input @ error.T @ self.P @ self.B
+        theta_update = - self.gamma_theta @ phi @ error.T @ self.P @ self.B
+        self.kx = self.kx + kx_update.T * self.dt * 10
+        self.kr = self.kr + kr_update.T * self.dt * 10
+        self.theta = self.theta + theta_update * self.dt * 10
+        self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
+
+        # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G  - self.Am_k * state[0:3] - self.Am_k * state[3:6]
+        thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G
         
-        
+        # Control constrain
+        thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
+        thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
+        thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+
+        self.force_controller = thrust.flatten()
+
+
+        # 计算姿态环控制器
+        thrust_body, att_des = self.controller_att.Decomposition1(self.force_controller, state_des.att)
+
+        # 返回值是：机身推力 + 3维期望姿态
+        action = np.array([thrust_body, att_des[0], att_des[1], att_des[2]])
+
+        return action
 
 
         
@@ -1093,7 +1170,7 @@ class Controller:
         return W
     
 
-    def model_update(self):
+    def model_linear_update(self):
         state = np.hstack((self.pos_ref, self.vel_ref)).reshape(-1,1)
         input = self.ref_input.reshape(-1,1)
         state_update = self.Am @ state + self.B @ input

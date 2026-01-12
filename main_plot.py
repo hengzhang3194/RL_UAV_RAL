@@ -39,8 +39,7 @@ def load_csv_data(file_path='/Data/RL_flare.csv'):
     df = pd.read_csv(load_path)
 
     # 1. 自动提取所有以 'theta_' 开头的列名，并按序号排序（确保 theta_0, theta_1 顺序正确）
-    theta_cols = sorted([col for col in df.columns if col.startswith('theta_')], 
-                        key=lambda x: int(x.split('_')[1]))
+    theta_cols = sorted([col for col in df.columns if col.startswith('theta_')], key=lambda x: int(x.split('_')[1]))
 
     # 2. 创建基础 log 字典
     log = {

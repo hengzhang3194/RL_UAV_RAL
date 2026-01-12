@@ -21,7 +21,7 @@ from envs.controller import Controller
 
 drone = DroneEnv_flare()
 controller1 = Controller(controller_flag='NFC')
-controller2 = Controller(controller_flag='RL')
+controller2 = Controller(controller_flag='RL_MRAC')
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
 
@@ -41,7 +41,7 @@ while (drone.state.time <= drone.duration):
 
     if drone.state.time < 10.0:
         desired_trajectory = desired_trajectory1
-        controller = controller1
+        controller = controller2
     else:
         desired_trajectory = desired_trajectory2
         controller = controller2
@@ -56,14 +56,6 @@ while (drone.state.time <= drone.duration):
     print(f"Action is {action}.")
 
 
-
-    # if pos_control_flag:
-    #     log['kx'].append(drone.kx)
-    #     log['kr'].append(drone.kr)
-    #     log['theta'].append(drone.theta)
-    #     log['thrust_pos'].append(drone.force_controller)
-    #     log['pos_error'].append(drone.pos_error)
-    #     log['vel_error'].append(drone.vel_error)
 
     # step simulator
     obs, reward, terminated, truncated, info = drone.step(action, state_des)
@@ -97,9 +89,12 @@ while (drone.state.time <= drone.duration):
         log["force_controller"].append(controller.force_controller)
         
 
-        if controller.controller_flag == 'MRAC':
+        if 'MRAC' in controller.controller_flag:
             log["pos_ref"].append(controller.pos_ref)
             log["vel_ref"].append(controller.vel_ref)
+            log['kx'].append(controller.kx)
+            log['kr'].append(controller.kr)
+            log['theta'].append(controller.theta)
 
         if 'regressor' in controller.controller_flag:
             log["theta_hat"].append(controller.theta_hat.copy())
@@ -112,7 +107,6 @@ drone.close()
 print(f"Total Cost Real Time: {round(time.perf_counter() - start_timestamp, 4)}s.")
 # print(f"Finally, kx is {drone.kx}, kr is {drone.kr}, theta is {drone.theta}.")
 # np.savez('Data/controller_gains.npz', kx=controller.kx, kr=controller.kr, theta=controller.theta)
-# np.savez('Data/controller_gains.npz', theta_hat=controller.theta_hat)
 
 
 
@@ -172,7 +166,7 @@ storage_dict = {
 }
 
 # 4. 处理条件分支 (MRAC)
-if controller.controller_flag == 'MRAC':
+if 'MRAC' in controller.controller_flag:
     storage_dict.update({
         'pos_xr': log["pos_ref"][:, 0], 'pos_yr': log["pos_ref"][:, 1], 'pos_zr': log["pos_ref"][:, 2],
         'vel_xr': log["vel_ref"][:, 0], 'vel_yr': log["vel_ref"][:, 1], 'vel_zr': log["vel_ref"][:, 2],
@@ -193,24 +187,16 @@ print(f"Data saved to {save_path}")
 ####################################
 # 保存为 .npz 文件
 ####################################
-# save_path = sys.path[0] + '/data/RL_MRAC_flare.npz'
+if 'MRAC' in controller.controller_flag:
+    save_path = sys.path[0] + '/Data/controller_gains.npz'
 
-# 准备数据：将二维矩阵展平为一维数组
-# kx_array = np.array([k.flatten() for k in log['kx']])          # (N, 18)
-# kr_array = np.array([k.flatten() for k in log['kr']])          # (N, 9)
-# theta_array = np.array([t.flatten() for t in log['theta']])    # (N, 18)
-# thrust_array = np.array(log['thrust_pos'])                     # (N, 3)
-# pos_err_array = np.array(log['pos_error'])                     # (N, 3)
-# vel_err_array = np.array(log['vel_error'])                     # (N, 3)
+    # 准备数据：将二维矩阵展平为一维数组
+    kx_array = np.array([k.flatten() for k in log['kx']])          # (N, 18)
+    kr_array = np.array([k.flatten() for k in log['kr']])          # (N, 9)
+    theta_array = np.array([t.flatten() for t in log['theta']])    # (N, 18)
 
-# # 将数据保存为 .npz 文件
-# np.savez(save_path,
-#          kx=kx_array,
-#          kr=kr_array,
-#          theta=theta_array,
-#          thrust=thrust_array,
-#          pos_error=pos_err_array,
-#          vel_error=vel_err_array)
+    # 将数据保存为 .npz 文件
+    np.savez(save_path, kx=kx_array, kr=kr_array, theta=theta_array)
 
 
 
