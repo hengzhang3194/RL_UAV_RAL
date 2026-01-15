@@ -114,9 +114,9 @@ def load_npz_data(file_path='/Data/RL_MRAC_flare.npz'):
         log["kr"] = [kr.reshape(3, 3) for kr in data['kr']]
         log["theta"] = [theta.reshape(6, 3) for theta in data['theta']]
     
-    log["thrust_pos"] = data['thrust']
-    log["pos_error"] = data['pos_error']
-    log["vel_error"] = data['vel_error']
+    # log["thrust_pos"] = data['thrust']
+    # log["pos_error"] = data['pos_error']
+    # log["vel_error"] = data['vel_error']
 
 
     # 示例：检查恢复的数据
@@ -333,6 +333,68 @@ def plot_3d_trajectory(pos, vel, pos_des=None):
     plt.tight_layout()
     # plt.show()
 
+def plot_3d_trajectory_with_time(pos, pos_des=None):
+    """
+    绘制三维轨迹，实际轨迹的颜色随时间（点的索引）变化。
+    
+    参数：
+        pos: (N, 3) numpy array，实际轨迹位置
+        pos_des: (N, 3) numpy array，可选，期望轨迹位置（黑虚线）
+    """
+    n_points = pos.shape[0]
+    # 创建时间索引数组 (0 到 1)
+    time_idx = np.linspace(0, 1, n_points)
+
+    # 1. 准备线段
+    points = pos.reshape(-1, 1, 3)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    # 2. 设置颜色映射 (使用 'plasma' 或 'coolwarm' 这种对比明显的色表)
+    # 颜色随索引从 0 (初期) 变到 1 (后期)
+    norm = Normalize(vmin=0, vmax=1)
+    cmap = cm.get_cmap('plasma') 
+    colors = cmap(norm(time_idx[:-1]))
+
+    # 3. 创建 3D 线段集合
+    lc = Line3DCollection(segments, colors=colors, linewidths=2.5, alpha=0.8)
+
+    # 4. 绘图
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # 添加实际轨迹
+    ax.add_collection3d(lc)
+
+    # 5. 绘制期望轨迹 (参考线)
+    if pos_des is not None:
+        ax.plot(pos_des[:, 0], pos_des[:, 1], pos_des[:, 2],
+                linestyle='--', color='gray', alpha=0.5, linewidth=1, label='Reference')
+
+    # 6. 设置坐标轴范围
+    all_pts = np.vstack([pos, pos_des]) if pos_des is not None else pos
+    ax.set_xlim(all_pts[:, 0].min(), all_pts[:, 0].max())
+    ax.set_ylim(all_pts[:, 1].min(), all_pts[:, 1].max())
+    ax.set_zlim(all_pts[:, 2].min(), all_pts[:, 2].max())
+
+    # 7. 添加颜色条，标明时间进度
+    mappable = cm.ScalarMappable(norm=norm, cmap=cmap)
+    mappable.set_array(time_idx)
+    cbar = fig.colorbar(mappable, ax=ax, pad=0.1, shrink=0.6)
+    cbar.set_label('Time Progress (Start -> End)')
+    # 修改颜色条刻度为百分比，更直观
+    cbar.set_ticks([0, 0.5, 1])
+    cbar.set_ticklabels(['Start', 'Middle', 'End'])
+
+    ax.set_xlabel('X (m)')
+    ax.set_ylabel('Y (m)')
+    ax.set_zlabel('Z (m)')
+    ax.set_title('3D Trajectory Colored by Time Progress')
+    
+    # 保持坐标轴比例一致 (建议调用你之前的 set_axes_equal)
+    set_axes_equal(ax) 
+    plt.legend()
+    plt.show()
+
 
 def plot_3d_trajectory_with_error(pos, pos_des=None):
     """
@@ -386,7 +448,7 @@ def plot_3d_trajectory_with_error(pos, pos_des=None):
     set_axes_equal(ax)
     ax.legend()
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 def plot_3d_trajectory_with_error2(pos, pos_des=None):
     """
@@ -587,6 +649,7 @@ def plot_controller_gains(log, dt=0.05):
             ax[i].plot(time, kx_history[:, i, j], label=f"Kx[{i},{j}]")
         ax[i].legend(loc='upper right')
         ax[i].set_ylabel(f"Kx row {i}")
+        ax[i].grid(True)
     ax[-1].set_xlabel("Time [s]")
     fig.suptitle("Kx Parameter Evolution Over Time")
     fig.tight_layout()
@@ -599,18 +662,20 @@ def plot_controller_gains(log, dt=0.05):
             ax[i].plot(time, kr_history[:, i, j], label=f"Kr[{i},{j}]")
         ax[i].legend()
         ax[i].set_ylabel(f"Kr row {i}")
+        ax[i].grid(True)
     ax[-1].set_xlabel("Time [s]")
     fig.suptitle("Kr Parameter Evolution Over Time")
     fig.tight_layout()
     # plt.show()
 
     # 示例：theta 的绘图
-    fig, ax = plt.subplots(6, 1, figsize=(12, 12), sharex=True)
+    fig, ax = plt.subplots(6, 1, figsize=(12, 8), sharex=True)
     for i in range(6):
         for j in range(3):
             ax[i].plot(time, theta_history[:, i, j], label=f"θ[{i},{j}]")
         ax[i].legend()
         ax[i].set_ylabel(f"θ row {i}")
+        ax[i].grid(True)
     ax[-1].set_xlabel("Time [s]")
     fig.suptitle("Theta Parameter Evolution Over Time")
     fig.tight_layout()
@@ -618,21 +683,21 @@ def plot_controller_gains(log, dt=0.05):
 
 
     # 假设 thrust_history 是一个 N x 3 的列表或数组
-    thrust_history = np.array(log['thrust_pos'])  # 转为 numpy 数组
-    # 创建图形
-    plt.figure(figsize=(10, 6))
-    plt.plot(time, thrust_history[:, 0], label='Thrust X', color='r')
-    plt.plot(time, thrust_history[:, 1], label='Thrust Y', color='g')
-    plt.plot(time, thrust_history[:, 2], label='Thrust Z', color='b')
+    # thrust_history = np.array(log['thrust_pos'])  # 转为 numpy 数组
+    # # 创建图形
+    # plt.figure(figsize=(10, 6))
+    # plt.plot(time, thrust_history[:, 0], label='Thrust X', color='r')
+    # plt.plot(time, thrust_history[:, 1], label='Thrust Y', color='g')
+    # plt.plot(time, thrust_history[:, 2], label='Thrust Z', color='b')
 
-    # 添加标签和图例
-    plt.xlabel('Time Step')
-    plt.ylabel('Thrust')
-    plt.title('Thrust Time Series (X, Y, Z)')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+    # # 添加标签和图例
+    # plt.xlabel('Time Step')
+    # plt.ylabel('Thrust')
+    # plt.title('Thrust Time Series (X, Y, Z)')
+    # plt.legend()
+    # plt.grid(True)
+    # plt.tight_layout()
+    # plt.show()
 
 
 def compute_segmented_rms(signal, segment_length=200):
@@ -709,12 +774,14 @@ if __name__ == '__main__':
 
     # plot_throttle(log)
     # plot_3d_trajectory(log['pos'], log['vel'], log["pos_des"])
-    plot_3d_trajectory_with_error2(log['pos'], log["pos_des"])
+    plot_3d_trajectory_with_time(log['pos'], log["pos_des"])
+    # plot_3d_trajectory_with_error2(log['pos'], log["pos_des"])
     plot_3d_trajectory_with_nearest_error_and_matches(log['pos'], log["pos_des"])
 
 
-    # log2 = load_npz_data(path+'.npz')
-    # calculate_rms(log2)
+    # npz_path = '/Data/controller_gains.npz'
+    # log2 = load_npz_data(npz_path)
+    # # calculate_rms(log2)
     # plot_controller_gains(log2)
 
     plt.show()

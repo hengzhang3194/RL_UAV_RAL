@@ -182,7 +182,8 @@ class Controller:
             hidden_size=[256, 256]
 
             # pi_model_path = 'policy/rl_8h/pi.pth'
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
+            # pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260112_235739/ckpts/5000/pi.pth' 
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -203,6 +204,23 @@ class Controller:
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
             self.device = 'cpu'
+            self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
+            self.pi_net.load_state_dict(torch.load(pi_model_path))
+            self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
+
+        elif self.controller_flag == 'RL_flare':
+            # 位置环 RL，姿态环采取非线性反馈控制
+            obs_dims = 15
+            act_dims = 3
+            hidden_size=[256, 256]
+
+            # pi_model_path = 'policy/rl_8h/pi.pth'
+            # pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
+            pi_model_path = 'tensorboard/Drone_flare/SAC/20260114_183213/ckpts/latest/pi.pth' 
+
+            assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
+
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
             self.pi_net.load_state_dict(torch.load(pi_model_path))
             self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
@@ -257,15 +275,15 @@ class Controller:
             self.theta = np.zeros((6, 3))  
             self.gamma_x = 0.005 * np.eye(6)
             self.gamma_r = 0.0003 * np.eye(3)
-            self.gamma_theta = 0.0003 * np.eye(6)
-            self.Q = -900 * np.eye(6)  # Q 必须是对称的
+            self.gamma_theta = 0.003 * np.eye(6)
+            self.Q = -700 * np.eye(6)  # Q 必须是对称的
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
 
             ############ 从文件中读取控制器参数的初值
-            data_gain = np.load('Data/controller_gains.npz')
-            self.kx = data_gain['kx'][-1].reshape(3, 6)
-            self.kr = data_gain['kr'][-1].reshape(3, 3)
-            self.theta = data_gain['theta'][-1].reshape(6, 3)
+            # data_gain = np.load('Data/controller_gains.npz')
+            # self.kx = data_gain['kx'][-1].reshape(3, 6)
+            # self.kr = data_gain['kr'][-1].reshape(3, 3)
+            # self.theta = data_gain['theta'][-1].reshape(6, 3)
 
             # load RL data
             RL_data = pd.read_csv('Data/RL_data.csv')
@@ -483,6 +501,8 @@ class Controller:
             action = self.RL(obs_flag, state_des)
         elif self.controller_flag == 'RL_gazebo':
             action = self.RL_gazebo(obs_flag, state_des)
+        elif self.controller_flag == 'RL_flare':
+            action = self.RL(obs_flag, state_des)
 
         else:
             raise ValueError(

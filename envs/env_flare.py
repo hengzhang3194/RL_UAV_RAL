@@ -45,7 +45,7 @@ class DroneEnv(gym.Env):
         self.inertial = np.diag([0.003686, 0.003686, 0.006824])
         self.inertial_inv = np.linalg.inv(self.inertial)
 
-        self.duration = 90.0     # 仿真时长
+        self.duration = 200.0     # 仿真时长
         position_frequency = 20.0
         attitude_frequency = 200.0
         self.pos_att_power = round(attitude_frequency / position_frequency)
@@ -89,6 +89,20 @@ class DroneEnv(gym.Env):
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, state: Optional[State_struct]=None):
         super().reset(seed=seed)
 
+        #######################################
+        # 让无人机从空中起飞
+        # Start simulation
+        self.flare.reset()
+
+        # 初始化之后，让无人机起飞并悬停
+        steps_per_call = round(self.dt / self.sim_dt)
+        nan = float('NaN')
+        input = (0.0, 0.0, 0.0, 0.4, nan, nan, nan, nan, nan, nan, 0.0, nan)
+        for i in range(100):
+            reply = self.flare.simulate(steps_per_call,  {self.px4: input}, [self.body_info])
+        print(f'Takeoff {i}/100.')
+        #######################################
+
         # define initial state
         self.state = State_struct(
                     pos=np.array([0.0, 0.0, 1.0]),
@@ -115,7 +129,7 @@ class DroneEnv(gym.Env):
 
 
     def reward(self, obs):
-        yawcost = 0.5 * np.abs(obs.att[2])
+        yawcost = -0.5 * np.abs(obs.att[2])
         poscost = 10 / (np.linalg.norm(obs.pos) + 1)
         velcost = 1 / (np.linalg.norm(obs.vel) + 1)
 

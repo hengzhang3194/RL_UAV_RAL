@@ -49,6 +49,7 @@ class DroneEnv(gym.Env):
         hovering_throttle = 0.4     # 悬停油门
         self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
         self.actuator_tau = 0.02 # 电机时间常数 [s]
+        self.action_last = np.zeros(4)
 
         # 设置状态约束边界
         self.DEG2RAD = math.pi / 180        # 0.017453292519943295
@@ -100,12 +101,19 @@ class DroneEnv(gym.Env):
 
 
 
-    def reward(self, obs):
-        yawcost = 0.5 * np.abs(obs.att[2])
+    def reward(self, obs, action, last_action):
+        yawcost = -0.5 * np.abs(obs.att[2])
         poscost = 10 / (np.linalg.norm(obs.pos) + 1)
         velcost = 1 / (np.linalg.norm(obs.vel) + 1)
 
-        cost = yawcost + poscost + velcost
+        # 惩罚当前动作与上一个动作的差异，迫使控制逻辑变得平滑
+        action_diff = np.linalg.norm(action - last_action)
+        action_smoothness_cost = -0.5 * action_diff  # 系数 0.5 可根据震荡剧烈程度调整
+        
+        # 惩罚过大的力输出，避免系统总是在极限边缘运行
+        action_mag_cost = -0.1 * np.linalg.norm(action)
+
+        cost = yawcost + poscost + velcost + action_smoothness_cost + action_mag_cost
 
         return cost
 
@@ -154,7 +162,8 @@ class DroneEnv(gym.Env):
                                       self.state.att], axis=0)
 
 
-        reward = self.reward(self.obs)
+        reward = self.reward(self.obs, action, self.action_last)
+        self.action_last = action
 
         # conditions of termination
         terminated = False  # only current reward

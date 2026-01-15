@@ -25,7 +25,7 @@ import pdb
 
 
 # drone = DroneEnv_flare(localhost=25556)
-drone = DroneEnv_nomodel()
+drone = DroneEnv_flare()
 desired_trajectory = Desired_trajectory(trajectory_flag='horizon_eight')
 controller_att = Controller_Attitude()
 
@@ -59,7 +59,7 @@ agent = SacAgent(drone.observation_space.shape[0], drone.action_space.shape[0], 
 
 # logger
 timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())    # 设置该格式的时间戳，
-logger = SummaryWriter(log_dir=f"./tensorboard/drone_model/{agent.name}/{timestamp}")    # 在该路径下记录训练过程中的数据
+logger = SummaryWriter(log_dir=f"./tensorboard/Drone_flare/{agent.name}/{timestamp}")    # 在该路径下记录训练过程中的数据
 
 # training
 steps, episodes, returns = 0, 0, []

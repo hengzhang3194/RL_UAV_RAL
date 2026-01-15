@@ -21,7 +21,7 @@ from envs.controller import Controller
 
 drone = DroneEnv_flare()
 controller1 = Controller(controller_flag='NFC')
-controller2 = Controller(controller_flag='RL_MRAC')
+controller2 = Controller(controller_flag='RL_flare')
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
 
