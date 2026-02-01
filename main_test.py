@@ -21,7 +21,7 @@ from envs.controller import Controller
 
 drone = DroneEnv_flare()
 controller1 = Controller(controller_flag='NFC')
-controller2 = Controller(controller_flag='RL_flare')
+controller2 = Controller(controller_flag='RL_MRAC')
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
 
@@ -105,8 +105,6 @@ while (drone.state.time <= drone.duration):
 drone.close()
 
 print(f"Total Cost Real Time: {round(time.perf_counter() - start_timestamp, 4)}s.")
-# print(f"Finally, kx is {drone.kx}, kr is {drone.kr}, theta is {drone.theta}.")
-# np.savez('Data/controller_gains.npz', kx=controller.kx, kr=controller.kr, theta=controller.theta)
 
 
 
@@ -114,14 +112,13 @@ print(f"Total Cost Real Time: {round(time.perf_counter() - start_timestamp, 4)}s
 # 保存为 CSV 文件
 ####################################
 
-save_path = sys.path[0] + '/Data/RL_MRAC.csv'
+save_path = sys.path[0] + '/Data/RL_MRAC_flare'
 
 # 2. 将 list 转换为 numpy array (保持你原有的预处理)
 for key in log:
     log[key] = np.array(log[key])
 
 # 3. 使用字典构造 DataFrame (Pandas 方式)
-# 这种方式直接通过切片将 [N, 3] 的矩阵拆解为 x, y, z 列
 storage_dict = {
     'time': log["time"],
     'pos_x': log["pos"][:, 0], 
@@ -179,7 +176,7 @@ if 'regressor' in controller.controller_flag:
 
 # 5. 创建并保存
 df = pd.DataFrame(storage_dict)
-df.to_csv(save_path, index=False)
+df.to_csv(save_path+'.csv', index=False)
 
 print(f"Data saved to {save_path}")
 
@@ -188,7 +185,6 @@ print(f"Data saved to {save_path}")
 # 保存为 .npz 文件
 ####################################
 if 'MRAC' in controller.controller_flag:
-    save_path = sys.path[0] + '/Data/controller_gains.npz'
 
     # 准备数据：将二维矩阵展平为一维数组
     kx_array = np.array([k.flatten() for k in log['kx']])          # (N, 18)
@@ -196,7 +192,7 @@ if 'MRAC' in controller.controller_flag:
     theta_array = np.array([t.flatten() for t in log['theta']])    # (N, 18)
 
     # 将数据保存为 .npz 文件
-    np.savez(save_path, kx=kx_array, kr=kr_array, theta=theta_array)
+    np.savez(save_path+'.npz', kx=kx_array, kr=kr_array, theta=theta_array)
 
 
 

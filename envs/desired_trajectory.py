@@ -82,41 +82,7 @@ class Desired_trajectory:
             self.att_vel_des = self.rl_data["att_vel_des"][idx]
             self.rl_input = self.rl_data["rl_input"][idx]
 
-        elif self.trajectory_flag == 5:
-            if t < 15:
-                self.pos_des = np.array([2.0, 0.0, 4.5])
-                self.vel_des = np.array([0.0, 0.0, 0.0])
-                self.acc_des = np.array([0.0, 0.0, 0.0])
-                self.att_des = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
-                self.att_vel_des = np.array([0.0, 0.0, 0.0])
-            else:
-                self.radius = 5.2  # 圆形轨迹半径（m）
-                self.omega = 0.5  # 角速度（rad/s），控制转圈速度（2π/ω 为周期）
-                self.z_height = 4.5  # 水平圆的高度（m）
-                t_prime = t - 5  # 从 t=5s 开始计时（t'=0 对应 t=5s）
-                theta = self.omega * t_prime  # 角度随时间变化：θ = ω·t'
-
-                self.pos_des = np.array([
-                    self.radius * np.cos(theta),  # x = r·cosθ
-                    self.radius * np.sin(theta),  # y = r·sinθ
-                    self.z_height                  # z 保持2.0m
-                ])
-
-                self.vel_des = np.array([
-                    -self.radius * self.omega * np.sin(theta),  # vx = -rω·sinθ
-                    self.radius * self.omega * np.cos(theta),   # vy = rω·cosθ
-                    0.0                                         # vz = 0
-                ])
-
-                self.acc_des = np.array([
-                    -self.radius * (self.omega **2) * np.cos(theta),  # ax = -rω²·cosθ
-                    -self.radius * (self.omega** 2) * np.sin(theta),  # ay = -rω²·sinθ
-                    0.0                                               # az = 0
-                ])
-
-                self.att_des = np.array([0.0, 0.0, 0.0]) 
-                self.att_vel_des = np.array([0.0, 0.0, 0.0])
-            self.rl_input = np.array([13.0, 0.0, 0.0, 0.0]).reshape(-1, 1)
+        
 
         elif self.trajectory_flag == 'horizon_circle':
             hovering_time = 6
@@ -269,6 +235,60 @@ class Desired_trajectory:
             self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
             self.state.ang = np.array([0.0, 0.0, 0.0])
 
+        elif self.trajectory_flag == 'horizon_circle_MRAC':
+            self.radius = 5.2  # 圆形轨迹半径（m）
+            self.omega = 0.5  # 角速度（rad/s），控制转圈速度（2π/ω 为周期）
+            self.z_height = 4.5  # 水平圆的高度（m）
+            t_prime = t - 5  # 从 t=5s 开始计时（t'=0 对应 t=5s）
+            theta = self.omega * t_prime  # 角度随时间变化：θ = ω·t'
+
+            self.state.pos = np.array([
+                self.radius * np.cos(theta),  # x = r·cosθ
+                self.radius * np.sin(theta),  # y = r·sinθ
+                self.z_height                  # z 保持2.0m
+            ])
+
+            self.state.vel = np.array([
+                -self.radius * self.omega * np.sin(theta),  # vx = -rω·sinθ
+                self.radius * self.omega * np.cos(theta),   # vy = rω·cosθ
+                0.0                                         # vz = 0
+            ])
+
+            self.state.acc = np.array([
+                -self.radius * (self.omega **2) * np.cos(theta),  # ax = -rω²·cosθ
+                -self.radius * (self.omega** 2) * np.sin(theta),  # ay = -rω²·sinθ
+                0.0                                               # az = 0
+            ])
+
+            self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
+            self.state.ang = np.array([0.0, 0.0, 0.0])
+
+        elif self.trajectory_flag == 'horizon_eight_MRAC':
+            period = 20.0   # 周期 [s]
+            scale_x = 5.0   # 幅值 [m]
+            scale_y = 2.5
+
+            # Lissajous曲线 x = sin(t), y = sin(2t)
+            # 调整其频率和振幅以满足速度要求
+            omega = 2 * np.pi / period      # 角频率
+            px = scale_x * np.sin(omega * t)
+            py = scale_y * np.sin(2 * omega * t)
+            pz = 4.5
+
+            # 计算速度
+            vx = scale_x * omega * np.cos(omega * t)
+            vy = scale_y * 2 * omega * np.cos(2 * omega * t)
+            vz = 0.0
+            ax = -1 * scale_x * omega * omega * np.sin(omega * t)
+            ay = -1 * scale_y * 4 * omega * omega * np.sin(2 * omega * t)
+            az = 0.0
+
+            self.state.pos = np.array([px, py, pz])
+            self.state.vel = np.array([vx, vy, vz])
+            self.state.acc = np.array([ax, ay, az])
+            self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
+            self.state.ang = np.array([0.0, 0.0, 0.0])
+
         elif self.trajectory_flag == 'spiral':
             z_start = 0.5
             z_rate = 0.02
@@ -315,6 +335,25 @@ class Desired_trajectory:
             px, py = 0.0, 0.0
             vx, vy = 0.0, 0.0
             ax, ay = 0.0, 0.0
+            self.state.pos = np.array([px, py, pz])
+            self.state.vel = np.array([vx, vy, vz])
+            self.state.acc = np.array([ax, ay, az])
+            self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
+            self.state.ang = np.array([0.0, 0.0, 0.0])
+
+        elif self.trajectory_flag == 'x_line':
+            '''
+            给定一个z轴的起点和终点，创建一个随指数衰减的起飞/landing曲线。
+            '''
+            x_start = 0.0
+
+            ax = 0.0
+            vx = 0.5
+            px = x_start + vx * t
+
+            pz, py = 1.0, 0.0
+            vz, vy = 0.0, 0.0
+            az, ay = 0.0, 0.0
             self.state.pos = np.array([px, py, pz])
             self.state.vel = np.array([vx, vy, vz])
             self.state.acc = np.array([ax, ay, az])

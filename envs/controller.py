@@ -79,7 +79,6 @@ class Controller:
             self.K_pos = np.array([2, 2, 10]) * 0.5
             self.Ki_pos = np.array([5, 5, 5]) * 0.2
 
-
         elif self.controller_flag == 'MRAC':
             # system matrix of reference model
             self.Am_k = 3
@@ -95,7 +94,7 @@ class Controller:
                 np.eye(3), np.zeros((3, 3))])
             self.Am = np.block([
                 [np.zeros((3, 3)), np.eye(3)],   # 第一行
-                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]  # 第二行
+                [-self.Am_k * np.eye(3) / self.mass, -self.Am_k * np.eye(3) / self.mass]  # 第二行
                 ])
             
             # state of reference model
@@ -109,12 +108,12 @@ class Controller:
             self.gamma_x = 0.005 * np.eye(6)
             self.gamma_r = 0.003 * np.eye(3)
             self.gamma_theta = 0.003 * np.eye(6)
-            self.Q = -900 * np.eye(6)  # Q 必须是对称的
+            self.Q = -800 * np.eye(6)  # Q 必须是对称的
             # 求解 Lyapunov 方程
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
 
             ############ 从文件中读取控制器参数的初值
-            # data_gain = np.load(path+'.npz')
+            # data_gain = np.load('Data/controller_gains.npz')
             # self.kx = data_gain['kx'][-1].reshape(3, 6)
             # self.kr = data_gain['kr'][-1].reshape(3, 3)
             # self.theta = data_gain['theta'][-1].reshape(6, 3)
@@ -166,7 +165,6 @@ class Controller:
             obs_dims = 12
             act_dims = 4
             hidden_size=[256, 256]
-            # pi_model_path = 'policy/20250710_000013/ckpts/latest/pi.pth'
             pi_model_path = 'tensorboard/Drone_model/SAC/20251223_230017/ckpts/1000/pi.pth'
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -177,13 +175,27 @@ class Controller:
 
         elif self.controller_flag == 'RL':
             # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 15
+            obs_dims = 12
             act_dims = 3
             hidden_size=[256, 256]
 
-            # pi_model_path = 'policy/rl_8h/pi.pth'
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260112_235739/ckpts/5000/pi.pth' 
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260125_235953/ckpts/latest/pi.pth' # 5000
+
+            assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
+
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
+            self.pi_net.load_state_dict(torch.load(pi_model_path))
+            self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
+
+        elif self.controller_flag == 'RL_corl':
+            # 位置环 RL，姿态环采取非线性反馈控制
+            obs_dims = 6
+            act_dims = 3
+            hidden_size=[256, 256]
+
+            pi_model_path = 'tensorboard/rl_8h/pi.pth'
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -208,15 +220,13 @@ class Controller:
             self.pi_net.load_state_dict(torch.load(pi_model_path))
             self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
 
-        elif self.controller_flag == 'RL_flare':
+        elif self.controller_flag == 'RL_by_flare':
             # 位置环 RL，姿态环采取非线性反馈控制
             obs_dims = 15
             act_dims = 3
             hidden_size=[256, 256]
 
-            # pi_model_path = 'policy/rl_8h/pi.pth'
-            # pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
-            pi_model_path = 'tensorboard/Drone_flare/SAC/20260114_183213/ckpts/latest/pi.pth' 
+            pi_model_path = 'tensorboard/Drone_flare/SAC/20260115_181221/ckpts/latest/pi.pth' 
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -254,19 +264,10 @@ class Controller:
         elif self.controller_flag == 'RL_MRAC':
             # system matrix of reference model
             self.Am_k = 3
-            self.A = np.block([
-                [np.zeros((3, 3)), np.eye(3)],   # 第一行
-                [np.zeros((3, 3)), np.zeros((3, 3))]  # 第二行
-                ])
-            self.B = np.block([
-                [np.zeros((3, 3))],   # 第一行
-                [np.eye(3) / self.mass]  # 第二行
-                ])
-            self.C = np.block([
-                np.eye(3), np.zeros((3, 3))])
-            self.Am = np.block([
-                [np.zeros((3, 3)), np.eye(3)],   # 第一行
-                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]  # 第二行
+            self.B = np.block([[np.zeros((3, 3))], 
+                               [np.eye(3) / self.mass]])
+            self.Am = np.block([[np.zeros((3, 3)), np.eye(3)], 
+                                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]
                 ])
             
             # 位置环采取MRAC，姿态环采取非线性反馈控制
@@ -276,11 +277,11 @@ class Controller:
             self.gamma_x = 0.005 * np.eye(6)
             self.gamma_r = 0.0003 * np.eye(3)
             self.gamma_theta = 0.003 * np.eye(6)
-            self.Q = -700 * np.eye(6)  # Q 必须是对称的
+            self.Q = -900 * np.eye(6)  # Q 必须是对称的
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
 
             ############ 从文件中读取控制器参数的初值
-            # data_gain = np.load('Data/controller_gains.npz')
+            # data_gain = np.load('Data/RL_MRAC_flare.npz')
             # self.kx = data_gain['kx'][-1].reshape(3, 6)
             # self.kr = data_gain['kr'][-1].reshape(3, 3)
             # self.theta = data_gain['theta'][-1].reshape(6, 3)
@@ -288,10 +289,15 @@ class Controller:
             # load RL data
             RL_data = pd.read_csv('Data/RL_data.csv')
 
+            # self.pos_ref_all = RL_data[['x_ref', 'y_ref', 'z_ref']].to_numpy()
+            # self.vel_ref_all = RL_data[['vx_ref', 'vy_ref', 'vz_ref']].to_numpy()
+            # self.ref_input_all = RL_data[['force_x', 'force_y', 'force_z']].to_numpy()
             self.pos_ref_all = RL_data[['pos_x', 'pos_y', 'pos_z']].to_numpy()
             self.vel_ref_all = RL_data[['vel_x', 'vel_y', 'vel_z']].to_numpy()
             self.ref_input_all = RL_data[['force_x', 'force_y', 'force_z']].to_numpy()
-            self.ref_time_all = RL_data['time'].to_numpy()
+            self.tradjectory_index = 0
+            self.pos_ref = np.zeros(3)
+            self.vel_ref = np.zeros(3)
 
         elif self.controller_flag == 'RL_MRAC_gazebo':
             # system matrix of reference model
@@ -333,7 +339,6 @@ class Controller:
             self.pos_ref_all = RL_data[['pos_x', 'pos_y', 'pos_z']].to_numpy()
             self.vel_ref_all = RL_data[['vel_x', 'vel_y', 'vel_z']].to_numpy()
             self.ref_input_all = RL_data[['force_x', 'force_y', 'force_z']].to_numpy()
-            self.ref_time_all = RL_data['time'].to_numpy()
 
 
         elif self.controller_flag == 'MRAC_full_model':
@@ -377,7 +382,7 @@ class Controller:
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
 
 
-        elif self.controller_flag == 'NFC_regressor':
+        elif self.controller_flag == 'NFC_regressor1':
             # self.theta_hat = np.array([
             #     4.501,      # GEFz*throttle*exp(-floor_dis)
             #     -4.390,     # GEFz*pos_z*exp(-floor_dis)
@@ -446,69 +451,7 @@ class Controller:
 
 
 
-    ###########################################
-    # Select controller by self.controller_flag
-    ###########################################
-    def get_controller(self, state, state_des, obs_flag):
-        '''和上面选择控制参数的名称一样，调用相关的控制器'''
-        self.pos_error = state.pos
-        self.vel_error = state.vel
-        self.acc_error = state.acc
-        self.att_error = state.att
-        self.ang_error = state.ang
-        self.time = state.time
-
-        self.pos_des = state_des.pos
-        self.vel_des = state_des.vel
-        self.acc_des = state_des.acc
-        self.att_des = state_des.att
-        self.ang_des = state_des.ang
-
-        self.pos = self.pos_error + self.pos_des
-        self.vel = self.vel_error + self.vel_des
-        self.acc = self.acc_error + self.acc_des
-        self.att = self.att_error + self.att_des
-        self.ang = self.ang_error + self.ang_des
-
-        if self.controller_flag == 'NFC':
-            action = self.NFC(obs_flag, state_des)
-        elif self.controller_flag == 'NFC_gazebo':
-            action = self.NFC_gazebo(obs_flag, state_des)
-
-        elif self.controller_flag == 'MRAC':
-            self.ref_input = self.pos_des
-            self.model_linear_update()
-            action = self.mrac_controller(obs_flag, state_des)  
-        elif self.controller_flag == 'RL_MRAC':
-            index = round(self.time / self.dt)
-            self.pos_ref = self.pos_ref_all[index]
-            self.vel_ref = self.vel_ref_all[index]
-            self.ref_input = self.ref_input_all[index]
-            action = self.mrac_controller(obs_flag, state_des)  
-        elif self.controller_flag == 'RL_MRAC_gazebo':
-            index = round(self.time / self.dt)
-            self.pos_ref = self.pos_ref_all[index]
-            self.vel_ref = self.vel_ref_all[index]
-            self.ref_input = self.ref_input_all[index]
-            action = self.mrac_gazebo(obs_flag, state_des) 
-
-        elif self.controller_flag == 'NFC_regressor':
-            action = self.NFC_regressor(obs_flag, state_des)
-
-        elif self.controller_flag == 'RL_full_model':
-            action = self.RL_full_model(obs_flag)
-        elif self.controller_flag == 'RL':
-            action = self.RL(obs_flag, state_des)
-        elif self.controller_flag == 'RL_gazebo':
-            action = self.RL_gazebo(obs_flag, state_des)
-        elif self.controller_flag == 'RL_flare':
-            action = self.RL(obs_flag, state_des)
-
-        else:
-            raise ValueError(
-                f"无效的控制器标识: {self.controller_flag}!") 
-
-        return action
+    
 
 
     #####################################
@@ -582,7 +525,7 @@ class Controller:
 
         return action
 
-        
+
 
 
 
@@ -689,18 +632,29 @@ class Controller:
             kx_update = self.gamma_x @ state @ error.T @ self.P @ self.B
             kr_update = self.gamma_r @ ref_input @ error.T @ self.P @ self.B
             theta_update = - self.gamma_theta @ phi @ error.T @ self.P @ self.B
-            self.kx = self.kx + kx_update.T * self.dt * 10
-            self.kr = self.kr + kr_update.T * self.dt * 10
-            self.theta = self.theta + theta_update * self.dt * 10
+
+            sigma = 0.001
+            # self.kx += (kx_update.T - sigma * self.kx) * self.dt * 10
+            # self.kr += (kr_update.T - sigma * self.kr) * self.dt * 10
+            # self.theta += (theta_update - sigma * self.theta) * self.dt * 10
+
+            self.kx = self.kx + (kx_update.T) * self.dt * 10
+            self.kr = self.kr + (kr_update.T) * self.dt * 10
+            self.theta = self.theta + (theta_update) * self.dt * 10
             self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
 
-            # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G  - self.Am_k * state[0:3] - self.Am_k * state[3:6]
-            thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G
-            
+            thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G - self.Am_k * state[0:3] - self.Am_k * state[3:6]
+            # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi
+
             # Control constrain
             thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
             thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
             thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+            
+            # Control constrain
+            # limit = self.MAX_ACC * self.mass
+            # thrust = np.clip(thrust, -limit, limit)
+            # thrust += self.G    # 重力补偿
 
             self.force_controller = thrust.flatten()
 
@@ -847,6 +801,53 @@ class Controller:
     #####################################
     def RL(self, obs_flag, state_des):
         if obs_flag:
+            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            obs_tensor = torch.FloatTensor(obs).to(self.device)
+            mean, log_std = self.pi_net(obs_tensor)
+            std = log_std.exp()
+            
+            action = torch.tanh(mean).detach().cpu().numpy()
+                
+            # RL controller 处理
+            self.force_controller[0] = action[0] * 0.5 * self.mass * self.g
+            self.force_controller[1] = action[1] * 0.5 * self.mass * self.g
+            self.force_controller[2] = action[2] * self.mass * self.g
+            
+        action_pos = self.force_controller
+
+        # 计算姿态环控制器
+        action_att = self.controller_att.NFC_att(action_pos, self.att, self.ang, state_des)
+        action = np.concatenate([action_pos, action_att], axis=0)
+
+        return action
+    
+    #####################################
+    # RL for Model & Flare
+    #####################################
+    def RL_corl(self, obs_flag, state_des):
+        if obs_flag:
+            self.pos_error = self.pos_des - self.pos
+            self.vel_error = self.vel_des - self.vel
+            obs = np.hstack((self.pos_error, self.vel_error))
+            obs_tensor = torch.FloatTensor(obs).to(self.device)
+            mean, log_std = self.pi_net(obs_tensor)
+            action = torch.tanh(mean).detach().cpu().numpy()
+
+            self.force_controller = action * np.array([6, 6, 13])
+            
+        action_pos = self.force_controller
+
+        # 计算姿态环控制器
+        action_att = self.controller_att.NFC_att(action_pos, self.att, self.ang, state_des)
+        action = np.concatenate([action_pos, action_att], axis=0)
+
+        return action
+    
+    #####################################
+    # RL for Model & Flare
+    #####################################
+    def RL_by_flare(self, obs_flag, state_des):
+        if obs_flag:
             obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error, self.att))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
@@ -857,9 +858,8 @@ class Controller:
             # RL controller 处理
             self.force_controller[0] = action[0] * 0.5 * self.mass * self.g
             self.force_controller[1] = action[1] * 0.5 * self.mass * self.g
-            self.force_controller[2] = (action[2] + 1) * self.mass * self.g
-
-
+            self.force_controller[2] = (action[2]+1) * self.mass * self.g
+            
         action = self.force_controller
 
         # 计算姿态环控制器
@@ -1090,106 +1090,6 @@ class Controller:
     ###################################################
     # 接下来是UAV数学模型的更新函数
     ###################################################
-    def model_pos_update(self):
-        state = np.hstack((self.pos, self.vel)).reshape(-1,1)
-        input = self.force_controller.reshape(-1,1)
-        state_update = self.Am @ state + self.B @ input
-        next_state = state + state_update * self.dt 
-        return next_state.flatten() 
-    
-    def model_nonlinear_update(self):
-
-        
-        current_time = self.time
-        next_time = self.time + self.dt
-
-        pos_input = np.array([0, 0, self.force_body])
-        att_input = self.torque_controller
-        current_pos_state = np.concatenate([self.pos, self.vel], axis=0)
-        current_att_state = np.concatenate([self.att, self.ang], axis=0)
-
-        def pos_input_dynamic(t, state):
-            return self.pos_dynamic(t, state, pos_input)
-        
-        def att_input_dynamic(t, state):
-            return self.att_dynamic(t, state, att_input)
-
-
-
-        sol_pos = solve_ivp(fun=pos_input_dynamic, t_span=[current_time, next_time], y0=current_pos_state, method='RK45', t_eval=[next_time], rtol=1e-6, atol=1e-9)
-
-        sol_att = solve_ivp(fun=att_input_dynamic, t_span=[current_time, next_time], y0=current_att_state, method='RK45', t_eval=[next_time], rtol=1e-6, atol=1e-9)
-
-        return sol_pos, sol_att
-
-    
-    def att_dynamic(self, t, state, input):
-        # 欧拉角导数
-        att_dot = self.euler_derivatives() @ self.ang
-        
-        # 角加速度 (使用刚体转动方程: I·ω̇ + ω×(I·ω) = M)
-        omega = self.ang
-        ang_dot = self.J_inv @ (input - np.cross(omega, self.J @ omega))
-
-        att_loop_dot = np.concatenate([att_dot, ang_dot], axis=0)
-        return att_loop_dot
-
-    def pos_dynamic(self, t, state, input):
-
-        # 重力向量 (世界坐标系)
-        gravity_world = np.array([0, 0, -self.mass * self.g])
-        
-        # 推力向量 (机体坐标系 -> 世界坐标系)
-        R = self.rotation_matrix()
-        thrust_world = R @ input
-        
-        # 计算加速度 (世界坐标系)
-        pos_dot = self.vel
-        pos_vel_dot = (thrust_world + gravity_world) / self.mass
-
-        pos_loop_dot = np.concatenate([pos_dot, pos_vel_dot], axis=0)
-        return pos_loop_dot
-    
-    def rotation_matrix(self):
-        """计算从机体坐标系到世界坐标系的旋转矩阵 (ZYX顺序)"""
-        phi, theta, psi = self.att
-
-        # 偏航矩阵 (绕z轴)
-        Rz = np.array([
-            [np.cos(psi), -np.sin(psi), 0],
-            [np.sin(psi), np.cos(psi), 0],
-            [0, 0, 1]])
-        
-        # 俯仰矩阵 (绕y轴)
-        Ry = np.array([
-            [np.cos(theta), 0, np.sin(theta)],
-            [0, 1, 0],
-            [-np.sin(theta), 0, np.cos(theta)]])
-        
-        # 滚转矩阵 (绕x轴)
-        Rx = np.array([
-            [1, 0, 0],
-            [0, np.cos(phi), -np.sin(phi)],
-            [0, np.sin(phi), np.cos(phi)]])
-        
-        # 总旋转矩阵 R = Rz * Ry * Rx
-        return Rz @ Ry @ Rx
-    
-    def euler_derivatives(self):
-        """计算欧拉角导数 (角速度到欧拉角导数的转换)"""
-        phi, theta, psi = self.att
-
-        # 转换矩阵
-        W = np.array([
-            [1, np.sin(phi) * np.tan(theta), np.cos(phi) * np.tan(theta)],
-            [0, np.cos(phi), -np.sin(phi)],
-            [0, np.sin(phi) / np.cos(theta), np.cos(phi) / np.cos(theta)]
-        ])
-        
-        # 欧拉角导数
-        return W
-    
-
     def model_linear_update(self):
         state = np.hstack((self.pos_ref, self.vel_ref)).reshape(-1,1)
         input = self.ref_input.reshape(-1,1)
@@ -1197,6 +1097,77 @@ class Controller:
         next_state = state + state_update * self.dt 
         self.pos_ref = next_state.flatten()[:3]
         self.vel_ref = next_state.flatten()[3:]
+
+
+    ###########################################
+    # Select controller by self.controller_flag
+    ###########################################
+    def get_controller(self, state, state_des, obs_flag):
+        '''和上面选择控制参数的名称一样，调用相关的控制器'''
+        self.pos_error = state.pos
+        self.vel_error = state.vel
+        self.acc_error = state.acc
+        self.att_error = state.att
+        self.ang_error = state.ang
+        self.time = state.time
+
+        self.pos_des = state_des.pos
+        self.vel_des = state_des.vel
+        self.acc_des = state_des.acc
+        self.att_des = state_des.att
+        self.ang_des = state_des.ang
+
+        self.pos = self.pos_error + self.pos_des
+        self.vel = self.vel_error + self.vel_des
+        self.acc = self.acc_error + self.acc_des
+        self.att = self.att_error + self.att_des
+        self.ang = self.ang_error + self.ang_des
+
+        if self.controller_flag == 'NFC':
+            action = self.NFC(obs_flag, state_des)
+        elif self.controller_flag == 'NFC_gazebo':
+            action = self.NFC_gazebo(obs_flag, state_des)
+
+        elif self.controller_flag == 'MRAC':
+            self.ref_input = self.pos_des
+            self.model_linear_update()
+            action = self.mrac_controller(obs_flag, state_des)  
+        elif self.controller_flag == 'RL_MRAC':
+            # if obs_flag:
+            #         self.tradjectory_index += 1
+            # index = self.tradjectory_index
+
+            index = round(self.time / self.dt)
+            self.pos_ref = self.pos_ref_all[index]
+            self.vel_ref = self.vel_ref_all[index]
+            self.ref_input = self.ref_input_all[index]
+            action = self.mrac_controller(obs_flag, state_des)  
+        elif self.controller_flag == 'RL_MRAC_gazebo':
+            index = round(self.time / self.dt)
+            self.pos_ref = self.pos_ref_all[index]
+            self.vel_ref = self.vel_ref_all[index]
+            self.ref_input = self.ref_input_all[index]
+            action = self.mrac_gazebo(obs_flag, state_des) 
+
+        elif self.controller_flag == 'NFC_regressor':
+            action = self.NFC_regressor(obs_flag, state_des)
+
+        elif self.controller_flag == 'RL_full_model':
+            action = self.RL_full_model(obs_flag)
+        elif self.controller_flag == 'RL':
+            action = self.RL(obs_flag, state_des)
+        elif self.controller_flag == 'RL_corl':
+            action = self.RL_corl(obs_flag, state_des)
+        elif self.controller_flag == 'RL_gazebo':
+            action = self.RL_gazebo(obs_flag, state_des)
+        elif self.controller_flag == 'RL_by_flare':
+            action = self.RL_by_flare(obs_flag, state_des)
+
+        else:
+            raise ValueError(
+                f"无效的控制器标识: {self.controller_flag}!") 
+
+        return action
 
 
 

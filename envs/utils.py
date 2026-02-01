@@ -43,9 +43,7 @@ class State_struct:
 
 
 def euler_to_quaternion(RPY):
-    """ 
-    将欧拉角（姿态角, rad）转换为四元数。
-    """
+    """ 将欧拉角（姿态角, rad）转换为四元数。"""
     roll, pitch, yaw = RPY
 
     # 计算半角
@@ -63,6 +61,19 @@ def euler_to_quaternion(RPY):
     qz = cr * cp * sy - sr * sp * cy
 
     return qx, qy, qz, qw
+
+def euler_to_quaternion_fyc(RPY):
+    """ 将欧拉角转换为四元数。(未测试)"""
+    roll, pitch, yaw = RPY
+    ox = math.sin(pitch * 0.5) * math.sin(yaw * 0.5) * math.cos(roll * 0.5) + math.cos(pitch * 0.5) * math.cos(
+        yaw * 0.5) * math.sin(roll * 0.5)
+    oy = math.sin(pitch * 0.5) * math.cos(yaw * 0.5) * math.cos(roll * 0.5) + math.cos(pitch * 0.5) * math.sin(
+        yaw * 0.5) * math.sin(roll * 0.5)
+    oz = math.cos(pitch * 0.5) * math.sin(yaw * 0.5) * math.cos(roll * 0.5) - math.sin(pitch * 0.5) * math.cos(
+        yaw * 0.5) * math.sin(roll * 0.5)
+    ow = math.cos(pitch * 0.5) * math.cos(yaw * 0.5) * math.cos(roll * 0.5) - math.sin(pitch * 0.5) * math.sin(
+        yaw * 0.5) * math.sin(roll * 0.5)
+    return ox, oy, oz, ow
     
 
 def quaternion_to_euler(quat):

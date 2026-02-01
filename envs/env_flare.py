@@ -45,7 +45,7 @@ class DroneEnv(gym.Env):
         self.inertial = np.diag([0.003686, 0.003686, 0.006824])
         self.inertial_inv = np.linalg.inv(self.inertial)
 
-        self.duration = 200.0     # 仿真时长
+        self.duration = 290.0     # 仿真时长
         position_frequency = 20.0
         attitude_frequency = 200.0
         self.pos_att_power = round(attitude_frequency / position_frequency)
@@ -202,6 +202,8 @@ class DroneEnv(gym.Env):
         threshold = 3.0  # 设定阈值，比如 3.0
         if np.linalg.norm(self.obs.pos) > threshold:
             terminated = True  # 终止当前 episode
+        if np.linalg.norm(self.obs.pos) > 10:
+            self.close()  # 终止本次仿真
 
         info = {"obs": self.obs, 
                 "obs_flag": obs_flag }

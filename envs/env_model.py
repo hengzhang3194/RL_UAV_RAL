@@ -42,7 +42,7 @@ class DroneEnv(gym.Env):
         self.inertial_inv = np.linalg.inv(self.inertial)
 
 
-        self.duration = 20.0     # 仿真时长
+        self.duration = 300.0     # 仿真时长
         position_frequency = 20.0
         attitude_frequency = 200.0
         self.pos_att_power = round(attitude_frequency / position_frequency)
@@ -57,29 +57,19 @@ class DroneEnv(gym.Env):
         self.MAX_ACC = 1.0 * self.g
 
         # system matrix
-        self.A = np.zeros((12, 12))
-        self.A[0:6, 6:12] = np.eye(6)
-        self.A[6:9, 3:6] = np.array([[0, self.g, 0], [-self.g, 0, 0], [0, 0, 0]])
-        self.B = np.zeros((12, 4))
-        self.B[8, 0] = 1 / self.mass
-        self.B[9:12, 1:4] = self.inertial_inv
-
-        # 期望极点（实部为负的复数），阻尼比为0.7
-        p_pos = -1.0
-        p_att = -6.0
-        p_vel = -3.0
-        p_ang = -10.0
-        poles = np.array([p_pos, p_pos, p_pos,  # x, y, z
-                        p_att, p_att, p_att,    # phi, theta, psi
-                        p_vel, p_vel, p_vel,    # vx, vy, vz
-                        p_ang, p_ang, p_ang    # p, q, r
-                        ])
-
-        # 使用 place_poles 函数求解 K
-        from scipy.signal import place_poles
-        pp = place_poles(self.A, self.B, poles)
-        self.K = pp.gain_matrix
-        self.Am = self.A - self.B @ self.K
+        self.Am_k = 3
+        self.A = np.block([
+            [np.zeros((3, 3)), np.eye(3)],   # 第一行
+            [np.zeros((3, 3)), np.zeros((3, 3))]  # 第二行
+            ])
+        self.B = np.block([
+            [np.zeros((3, 3))],   # 第一行
+            [np.eye(3) / self.mass]  # 第二行
+            ])
+        self.Am = np.block([
+            [np.zeros((3, 3)), np.eye(3)],   # 第一行
+            [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]  # 第二行
+            ])
 
 
         self.log_flag = True    # 是否记录log数据
@@ -140,21 +130,24 @@ class DroneEnv(gym.Env):
         self.state.time += self.dt
         self.seq += 1
 
+        action_pos = action[0:3]
+        self.throttle = action[3] * self.POTT
+        self.tau_roll = action[4]
+        self.tau_pitch = action[5]
+        self.tau_yaw = action[6]
 
-        self.throttle = action[0] * self.POTT
-        self.tau_roll = action[1]
-        self.tau_pitch = action[2]
-        self.tau_yaw = action[3]
 
 
         # force
-        state = np.concatenate([self.state.pos, self.state.att, self.state.vel, self.state.ang], axis=0)
-        state += (self.Am @ state + self.B @ action) * self.dt
-        (self.state.pos, self.state.att, self.state.vel, self.state.ang) = state.reshape(4, 3)
-        # self.state.pos = state[0:3]
-        # self.state.att = state[3:6]
-        # self.state.vel = state[6:9]
-        # self.state.ang = state[9:12]
+        state_pos = np.concatenate([self.state.pos, self.state.vel], axis=0)
+        state_update = self.Am @ state_pos + self.B @ action_pos
+        next_state = state_pos + state_update * self.dt 
+        (self.state.pos, self.state.vel) = next_state.reshape(2, 3)
+
+
+        state_att = np.concatenate([self.state.att, self.state.ang], axis=0)
+        next_state = self._integrate_dynamics(state_att, action[4:7])
+        (self.state.att, self.state.ang) = next_state.reshape(2, 3)
 
         
 
@@ -176,14 +169,11 @@ class DroneEnv(gym.Env):
                                       self.obs.att,
                                       self.obs.ang], axis=0)
 
-        if obs_flag:
-            reward = self.reward(self.obs)
-        else:   
-            reward = 0.0
+
+        reward = self.reward(self.obs)
 
         # conditions of termination
         terminated = False  # only current reward
-        # terminated = terminated or np.linalg.norm(self.desired_trajectory[-1][0] - self.pos) < self.position_error_threshold  # reach the goal position
         truncated = self.state.time > self.duration  # with future reward
          # 检查是否超出阈值
         threshold = 3.0  # 设定阈值，比如 3.0
@@ -199,3 +189,35 @@ class DroneEnv(gym.Env):
 
     def close(self):
         pass
+
+
+    def _integrate_dynamics(self, state, action):
+        """内部调用的 RK4 积分器"""
+        dt = self.dt
+        
+        # 定义导数闭包，确保使用的是当前步的控制输入
+        def dot_state(s, input):
+            # 解包中间状态
+            att = s[0:3]
+            ang = s[3:6]
+
+            # 姿态部分
+            phi, theta, psi = att
+            W = np.array([
+                [1, np.sin(phi) * np.tan(theta), np.cos(phi) * np.tan(theta)],
+                [0, np.cos(phi), -np.sin(phi)],
+                [0, np.sin(phi) / np.cos(theta), np.cos(phi) / np.cos(theta)]])
+            dot_att = W @ ang
+            dot_ang = self.inertial_inv @ (input - np.cross(ang, self.inertial @ ang))
+            
+            return np.concatenate([dot_att, dot_ang])
+
+        # RK4 步进
+        k1 = dot_state(state, action)
+        k2 = dot_state(state + dt/2 * k1, action)
+        k3 = dot_state(state + dt/2 * k2, action)
+        k4 = dot_state(state + dt * k3, action)
+        
+        next_state = state + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
+
+        return next_state

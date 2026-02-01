@@ -25,7 +25,7 @@ import pdb
 
 
 # drone = DroneEnv_flare(localhost=25556)
-drone = DroneEnv_flare()
+drone = DroneEnv_model(localhost=25555)
 desired_trajectory = Desired_trajectory(trajectory_flag='horizon_eight')
 controller_att = Controller_Attitude()
 
@@ -59,7 +59,7 @@ agent = SacAgent(drone.observation_space.shape[0], drone.action_space.shape[0], 
 
 # logger
 timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())    # 设置该格式的时间戳，
-logger = SummaryWriter(log_dir=f"./tensorboard/Drone_flare/{agent.name}/{timestamp}")    # 在该路径下记录训练过程中的数据
+logger = SummaryWriter(log_dir=f"./tensorboard/Drone_model/{agent.name}/{timestamp}")    # 在该路径下记录训练过程中的数据
 
 # training
 steps, episodes, returns = 0, 0, []
@@ -98,16 +98,18 @@ while steps <= max_steps:
 
         # 仿真姿态环，确保obs是位置环的频率。
         while not obs_flag:
+            pos = next_obs[0:3] + state_des.pos
+            vel = next_obs[3:6] + state_des.vel
             att = next_obs[6:9] + state_des.att
             ang = next_obs[9:12] + state_des.ang
             # scale = np.array([6, 6, 13])    # 13 = 1.32*9.8
-            act_att = np.zeros(3)
-            act_att[0] = action[0] * 0.5 * drone.mass * drone.g
-            act_att[1] = action[1] * 0.5 * drone.mass * drone.g
-            act_att[2] = (action[2] + 1) * drone.mass * drone.g
-            # act_att = scale * np.array([action[0], action[1], action[2]+1])
-            act_att = controller_att.NFC_att(act_att, att, ang, state_des)
-            next_obs, reward, terminated, truncated, info = drone.step(act_att, state_des)
+            act_pos = np.zeros(3)
+            act_pos[0] = action[0] * 0.5 * drone.mass * drone.g
+            act_pos[1] = action[1] * 0.5 * drone.mass * drone.g
+            act_pos[2] = action[2] * drone.mass * drone.g
+           
+            act_att = controller_att.NFC_att(act_pos, att, ang, state_des)
+            next_obs, reward, terminated, truncated, info = drone.step(act_pos, act_att, state_des)
             obs_flag = info["obs_flag"]
             cumulative_reward += reward
                 

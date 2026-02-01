@@ -4,36 +4,25 @@ sys.path.append('../')
 sys.path.append('/home/magic/AdapRL_zh/RL_MRAC_RAL')
 
 import numpy as np
+import pandas as pd
 import math
 import copy
 import gymnasium as gym
 from scipy.spatial.transform import Rotation as R
 from typing import Optional
 
-from collections import defaultdict
 from envs.utils import *
-from envs.desired_trajectory import Desired_trajectory
-from envs.controller import Controller
-from envs.env_model import DroneEnv as DroneEnv_model
-
-import pandas as pd
 
 
 # ! /usr/bin/env python
 import rospy
 from geometry_msgs.msg import PoseStamped, TwistStamped
-from mavros_msgs.msg import State, AttitudeTarget, PositionTarget, State, Altitude, VFR_HUD
+from mavros_msgs.msg import State, AttitudeTarget, PositionTarget, VFR_HUD
 
-from gazebo_msgs.msg import ModelState
-from geometry_msgs.msg import Twist
-from std_srvs.srv import Empty
 from mavros_msgs.srv import CommandBool, SetMode
-import numpy as np
-import tty, termios, time, sys, select, PyKDL, math
+import time, PyKDL
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu, BatteryState
-from std_msgs.msg import Int16, Float32
-from sensor_msgs.msg import Range
+from sensor_msgs.msg import Imu
 
 
 class DroneEnv(gym.Env):
@@ -74,26 +63,25 @@ class DroneEnv(gym.Env):
         self.rate = rospy.Rate(position_frequency)
 
         # pub
-        self.set_state = rospy.Publisher("gazebo/set_model_state", ModelState, queue_size=10)
-        self.target_motion_pub = rospy.Publisher("/mavros/setpoint_raw/local", PositionTarget, queue_size=10)
         self.body_target_pub = rospy.Publisher("/mavros/setpoint_raw/attitude", AttitudeTarget, queue_size=10)
-        self.laser_pub = rospy.Publisher("/mavros/altitude", Altitude, queue_size=2)
         rospy.wait_for_service("/mavros/set_mode")
         self.flightModeService = rospy.ServiceProxy("/mavros/set_mode", SetMode)
         rospy.wait_for_service("/mavros/cmd/arming")
         self.armService = rospy.ServiceProxy("/mavros/cmd/arming", CommandBool)
 
         # subscribers
-        # gazebo中用这个获取pos
-        self.local_pose_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self.mocap_pose_callback)
-        # 真机中用这个获取pos
-        # self.mocap_pose_sub = rospy.Subscriber("/mavros/vision_pose/pose", PoseStamped, self.mocap_pose_callback)
+        env = 'gazebo'
+        if env == 'gazebo':
+            # gazebo中用这个获取pos
+            self.local_pose_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self.mocap_pose_callback)
+        elif env == 'real':
+            # 真机中用这个获取pos
+            self.mocap_pose_sub = rospy.Subscriber("/mavros/vision_pose/pose", PoseStamped, self.mocap_pose_callback)
 
         self.local_vel_sub = rospy.Subscriber("/mavros/local_position/velocity_body", TwistStamped, self.local_vel_callback)
-        self.odom_sub = rospy.Subscriber("/mavros/local_position/odom", Odometry, self.odom_callback)
+        # self.odom_sub = rospy.Subscriber("/mavros/local_position/odom", Odometry, self.odom_callback)
         self.mavros_sub = rospy.Subscriber("/mavros/state", State, self.mavros_state_callback)
-        self.laser_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self.laser_callback)
-        self.vfr_sub = rospy.Subscriber("/mavros/vfr_hud", VFR_HUD, self.vfr_callback)
+        # self.vfr_sub = rospy.Subscriber("/mavros/vfr_hud", VFR_HUD, self.vfr_callback)
         self.local_acc_sub = rospy.Subscriber("/mavros/imu/data", Imu, self.local_acc_callback)
 
 
@@ -114,6 +102,9 @@ class DroneEnv(gym.Env):
         # 预留一些时间来等待arm实现。
         for _ in range(20):
             self.rate.sleep()
+
+        for _ in range(10):
+            self.flightModeService(custom_mode='OFFBOARD')
 
 
 
@@ -161,6 +152,7 @@ class DroneEnv(gym.Env):
 
         # publish 角速度命令
         if self.seq == 1:
+            
             self.flightModeService(custom_mode='OFFBOARD')
         self.att_pub()
         self.rate.sleep()
@@ -170,6 +162,15 @@ class DroneEnv(gym.Env):
         yaw, pitch, roll = R.from_quat(self.quat).as_euler('zyx')
         self.state.att = np.array([roll, pitch, yaw])
         self.state.ang = self.ang.copy()
+
+        # 未测试 速度是位置的微分
+        # self.vel[0] = math.pow(0.05, -1) * (self.pos[0] - self.pos_old[0])
+        # self.vel[1] = math.pow(0.05, -1) * (self.pos[1] - self.pos_old[1])
+        # self.vel[2] = math.pow(0.05, -1) * (self.pos[2] - self.pos_old[2])
+
+        # self.pos_old = self.pos.copy()
+
+
 
         self.obs.get_error(self.state, state_des)
 
@@ -221,23 +222,21 @@ class DroneEnv(gym.Env):
         self.ang[1] = msg.angular_velocity.y
         self.ang[2] = msg.angular_velocity.z
 
-    def odom_callback(self, msg):
-        x = msg.pose.pose.orientation.x
-        y = msg.pose.pose.orientation.y
-        z = msg.pose.pose.orientation.z
-        w = msg.pose.pose.orientation.w
-        rot = PyKDL.Rotation.Quaternion(x, y, z, w)
-        self.att = np.array(rot.GetRPY())  # 显式转换为NumPy数组，替换原对象
+    # def odom_callback(self, msg):
+    #     x = msg.pose.pose.orientation.x
+    #     y = msg.pose.pose.orientation.y
+    #     z = msg.pose.pose.orientation.z
+    #     w = msg.pose.pose.orientation.w
+    #     rot = PyKDL.Rotation.Quaternion(x, y, z, w)
+    #     self.att = np.array(rot.GetRPY())  # 显式转换为NumPy数组，替换原对象
 
         # self.roll_rate = msg.twist.twist.angular.x
         # self.pitch_rate = msg.twist.twist.angular.y
         # self.yaw_rate = msg.twist.twist.angular.z
 
-    def laser_callback(self, msg):
-        self.altitude = msg.pose.position.z
 
-    def vfr_callback(self, msg):
-        self.throttle_vfr = msg.throttle
+    # def vfr_callback(self, msg):
+    #     self.throttle_vfr = msg.throttle
 
     def mavros_state_callback(self, msg):
         self.mavros_state = msg
