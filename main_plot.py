@@ -50,6 +50,8 @@ def load_csv_data(file_path='/Data/RL_flare.csv'):
         "ang": df[["roll_vel", "pitch_vel", "yaw_vel"]].to_numpy(),
 
         "thrust_z": df["thrust_z"].to_numpy(),
+        'force_controller': df[["force_x", "force_y", "force_z"]].to_numpy(),
+        'torque_controller': df[["torque_x", "torque_y", "torque_z"]].to_numpy(),
 
         "pos_des": df[["pos_xd", "pos_yd", "pos_zd"]].to_numpy(),
         "vel_des": df[["vel_xd", "vel_yd", "vel_zd"]].to_numpy(),
@@ -111,10 +113,6 @@ def load_npz_data(file_path='/Data/RL_MRAC_flare.npz'):
         log["kx"] = [kx.reshape(3, 6) for kx in data['kx']]
         log["kr"] = [kr.reshape(3, 3) for kr in data['kr']]
         log["theta"] = [theta.reshape(6, 3) for theta in data['theta']]
-    
-    # log["thrust_pos"] = data['thrust']
-    # log["pos_error"] = data['pos_error']
-    # log["vel_error"] = data['vel_error']
 
 
     # 示例：检查恢复的数据
@@ -158,15 +156,77 @@ def plot_pos_att(log):
     plot position and attitude, 6张子图，每张子图包含两个轴，分别为位置和速度
     '''
     fig, axes = plt.subplots(2, 3)
+
+
+    ax00 = axes[0][0]
+    ax00.plot(log['time'], log['pos'][:, 0], label='pos_x', color=color1)
+    ax00.plot(log['time'], log['pos_des'][:, 0], label='pos_xd', color=color2)
+    ax00.tick_params(axis='y', labelcolor=color1)
+
+    ax01 = axes[0][1]
+    ax01.plot(log['time'], log['pos'][:, 1], label='pos_y', color=color1)
+    ax01.plot(log['time'], log['pos_des'][:, 1], label='pos_yd', color=color2)
+    ax01.tick_params(axis='y', labelcolor=color1)
+
+    ax02 = axes[0][2]
+    ax02.plot(log['time'], log['pos'][:, 2], label='pos_z', color=color1)
+    ax02.plot(log['time'], log['pos_des'][:, 2], label='pos_zd', color=color2)
+    ax02.tick_params(axis='y', labelcolor=color1)
+
+
+
+    if 'pos_ref' in log:
+        ax00.plot(log['time'], log['pos_ref'][:, 0], label='pos_xr', color=color3)
+        ax01.plot(log['time'], log['pos_ref'][:, 1], label='pos_yr', color=color3)
+        ax02.plot(log['time'], log['pos_ref'][:, 2], label='pos_zr', color=color3)
+
+
+    ax00.set_xlabel('time (s)')
+    ax00.set_ylabel('Position (m)', color=color1)
+    ax00.grid('True')
+    ax00.legend(loc='upper left')
+
+    ax01.set_xlabel('time (s)')
+    ax01.set_ylabel('Position (m)', color=color1)
+    ax01.grid('True')
+    ax01.legend(loc='upper left')
+
+    ax02.set_xlabel('time (s)')
+    ax02.set_ylabel('Position (m)', color=color1)
+    ax02.grid('True')
+    ax02.legend(loc='upper left')
+
+
+    ax10 = axes[1][0]
+    ax10.plot(log['time'], log['vel'][:, 0], label='vel_x', color=color1)
+    ax10.plot(log['time'], log['vel_des'][:, 0], label='vel_xd', color=color2)
+    
+    ax11 = axes[1][1]
+    ax11.plot(log['time'], log['vel'][:, 1], label='vel_y', color=color1)
+    ax11.plot(log['time'], log['vel_des'][:, 1], label='vel_yd', color=color2)
+
+    ax12 = axes[1][2]
+    ax12.plot(log['time'], log['vel'][:, 2], label='vel_z', color=color1)
+    ax12.plot(log['time'], log['vel_des'][:, 2], label='vel_zd', color=color2)
+
+    fig.set_size_inches(15.0, 8.0)
+    fig.tight_layout()
+    plt.show()
+
+def plot_att(time, pos, pos_des, pos_ref=None):
+    '''
+    plot position and attitude, 6张子图，每张子图包含两个轴，分别为位置和速度
+    '''
+    fig, axes = plt.subplots(2, 3)
     ax1 = axes[0][0]
-    ax1.plot(log['time'], log['pos'][:, 0], label='pos_x', color=color1)
-    ax1.plot(log['time'], log['pos_des'][:, 0], label='pos_xd', color=color2)
-    # ax1.plot(log['time'], log['pos_ref'][:, 0], label='pos_xr', color=color6)
+    ax1.plot(time, pos[:, 0], label='pos_x', color=color1)
+    ax1.plot(time, pos_des[:, 0], label='pos_xd', color=color2)
+    ax1.plot(time, pos_ref[:, 0], label='pos_xr', color=color6)
     ax1.tick_params(axis='y', labelcolor=color1)
 
     ax11 = ax1.twinx()
-    ax11.plot(log['time'], log['vel'][:, 0], label='vel_x', color=color3)
-    ax11.plot(log['time'], log['vel_des'][:, 0], label='vel_xd', color=color4)
+    ax11.plot(time, log['vel'][:, 0], label='vel_x', color=color3)
+    ax11.plot(time, log['vel_des'][:, 0], label='vel_xd', color=color4)
 
     # 分别获取 两个轴 的图例句柄和标签, 并进行展示
     ax1.set_xlabel('time (s)')
@@ -179,14 +239,14 @@ def plot_pos_att(log):
 
 
     ax2 = axes[0][1]
-    ax2.plot(log['time'], log['pos'][:, 1], label='pos_y', color=color1)
-    ax2.plot(log['time'], log['pos_des'][:, 1], label='pos_yd', color=color2)
-    # ax2.plot(log['time'], log['pos_ref'][:, 1], label='pos_yr', color=color6)
+    ax2.plot(time, log['pos'][:, 1], label='pos_y', color=color1)
+    ax2.plot(time, log['pos_des'][:, 1], label='pos_yd', color=color2)
+    ax2.plot(time, log['pos_ref'][:, 1], label='pos_yr', color=color6)
     ax2.tick_params(axis='y', labelcolor=color1)
 
     ax21 = ax2.twinx()
-    ax21.plot(log['time'], log['vel'][:, 1], label='vel_y', color=color3)
-    ax21.plot(log['time'], log['vel_des'][:, 1], label='vel_yd', color=color4)
+    ax21.plot(time, log['vel'][:, 1], label='vel_y', color=color3)
+    ax21.plot(time, log['vel_des'][:, 1], label='vel_yd', color=color4)
 
     # 分别获取 两个轴 的图例句柄和标签, 并进行展示
     ax2.set_xlabel('time (s)')
@@ -199,14 +259,14 @@ def plot_pos_att(log):
 
 
     ax3 = axes[0][2]
-    ax3.plot(log['time'], log['pos'][:, 2], label='pos_z', color=color1)
-    ax3.plot(log['time'], log['pos_des'][:, 2], label='pos_zd', color=color2)
-    # ax3.plot(log['time'], log['pos_ref'][:, 2], label='pos_zr', color=color6)
+    ax3.plot(time, log['pos'][:, 2], label='pos_z', color=color1)
+    ax3.plot(time, log['pos_des'][:, 2], label='pos_zd', color=color2)
+    ax3.plot(time, log['pos_ref'][:, 2], label='pos_zr', color=color6)
     ax3.tick_params(axis='y', labelcolor=color1)
 
     ax31 = ax3.twinx()
-    ax31.plot(log['time'], log['vel'][:, 2], label='vel_z', color=color3)
-    ax31.plot(log['time'], log['vel_des'][:, 2], label='vel_zd', color=color4)
+    ax31.plot(time, log['vel'][:, 2], label='vel_z', color=color3)
+    ax31.plot(time, log['vel_des'][:, 2], label='vel_zd', color=color4)
 
     # 分别获取 两个轴 的图例句柄和标签, 并进行展示
     ax3.set_xlabel('time (s)')
@@ -219,13 +279,13 @@ def plot_pos_att(log):
 
 
     ax1 = axes[1][0]
-    ax1.plot(log['time'], log['att'][:, 0], label='att_x', color=color1)
-    ax1.plot(log['time'], log['att_des'][:, 0], label='att_xd', color=color2)
+    ax1.plot(time, log['att'][:, 0], label='att_x', color=color1)
+    ax1.plot(time, log['att_des'][:, 0], label='att_xd', color=color2)
     ax1.tick_params(axis='y', labelcolor=color1)
 
     ax11 = ax1.twinx()
-    ax11.plot(log['time'], log['ang'][:, 0], label='ang_x', color=color3)
-    ax11.plot(log['time'], log['ang_des'][:, 0], label='ang_xd', color=color4)
+    ax11.plot(time, log['ang'][:, 0], label='ang_x', color=color3)
+    ax11.plot(time, log['ang_des'][:, 0], label='ang_xd', color=color4)
 
     # 分别获取 两个轴 的图例句柄和标签, 并进行展示
     ax1.set_xlabel('time (s)')
@@ -238,13 +298,13 @@ def plot_pos_att(log):
 
 
     ax1 = axes[1][1]
-    ax1.plot(log['time'], log['att'][:, 1], label='att_y', color=color1)
-    ax1.plot(log['time'], log['att_des'][:, 1], label='att_yd', color=color2)
+    ax1.plot(time, log['att'][:, 1], label='att_y', color=color1)
+    ax1.plot(time, log['att_des'][:, 1], label='att_yd', color=color2)
     ax1.tick_params(axis='y', labelcolor=color1)
 
     ax11 = ax1.twinx()
-    ax11.plot(log['time'], log['ang'][:, 1], label='ang_y', color=color3)
-    ax11.plot(log['time'], log['ang_des'][:, 1], label='ang_yd', color=color4)
+    ax11.plot(time, log['ang'][:, 1], label='ang_y', color=color3)
+    ax11.plot(time, log['ang_des'][:, 1], label='ang_yd', color=color4)
 
     # 分别获取 两个轴 的图例句柄和标签, 并进行展示
     ax1.set_xlabel('time (s)')
@@ -257,13 +317,13 @@ def plot_pos_att(log):
 
 
     ax1 = axes[1][2]
-    ax1.plot(log['time'], log['att'][:, 2], label='att_z', color=color1)
-    ax1.plot(log['time'], log['att_des'][:, 2], label='att_zd', color=color2)
+    ax1.plot(time, log['att'][:, 2], label='att_z', color=color1)
+    ax1.plot(time, log['att_des'][:, 2], label='att_zd', color=color2)
     ax1.tick_params(axis='y', labelcolor=color1)
 
     ax11 = ax1.twinx()
-    ax11.plot(log['time'], log['ang'][:, 2], label='ang_z', color=color3)
-    ax11.plot(log['time'], log['ang_des'][:, 2], label='ang_zd', color=color4)
+    ax11.plot(time, log['ang'][:, 2], label='ang_z', color=color3)
+    ax11.plot(time, log['ang_des'][:, 2], label='ang_zd', color=color4)
 
     # 分别获取 两个轴 的图例句柄和标签, 并进行展示
     ax1.set_xlabel('time (s)')
@@ -673,6 +733,30 @@ def plot_throttle(log):
     fig.tight_layout()
     plt.show()
 
+def plot_force(log):
+    """
+    绘制控制器输出的三维力随时间变化的曲线
+    """
+    time = log["time"]
+    force = log["force_controller"] # Shape (N, 3)
+    
+    fig, axs = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    fig.suptitle('Controller Output Forces (Force vs Time)', fontsize=16)
+
+    labels = ['Force X (N)', 'Force Y (N)', 'Force Z (N)']
+    colors = ['#e74c3c', '#2ecc71', '#3498db'] # 红、绿、蓝
+
+    for i in range(3):
+        axs[i].plot(time, force[:, i], color=colors[i], linewidth=1.5, label=f'Actual {labels[i]}')
+        axs[i].set_ylabel(labels[i])
+        axs[i].grid(True, linestyle='--', alpha=0.6)
+        axs[i].legend(loc='upper right')
+
+    axs[2].set_xlabel('Time (s)')
+    
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
 
     
 def calculate_rms(log):
@@ -877,16 +961,17 @@ if __name__ == '__main__':
     log = load_csv_data(data_path + '.csv')
     # log = load_csv_data_MRAC(path + '.csv')
     plot_pos_att(log)
+    # plot_force(log)
 
 
     # plot_throttle(log)
     # plot_3d_trajectory(log['pos'], log['vel'], log["pos_des"])
-    plot_2d_trajectory_with_time(log['pos'], log["pos_des"])
+    plot_2d_trajectory_with_time(log['pos'], log["pos_ref"])
     # plot_3d_trajectory_with_error2(log['pos'], log["pos_des"])
     # plot_3d_trajectory_with_nearest_error_and_matches(log['pos'], log["pos_des"])
 
     # # 画每一圈的RMS的柱状图
-    error_signal = log['pos'] - log['pos_des']
+    error_signal = log['pos'] - log['pos_ref']
     xy_rms_results, xyz_rms_results = compute_segmented_rms(error_signal, start_index=2000, segment_length=4000)  # segment_length是要分段的数据的长度
     plot_rms_comparison(xy_rms_results, xyz_rms_results)
 

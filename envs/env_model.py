@@ -74,7 +74,9 @@ class DroneEnv(gym.Env):
 
         self.log_flag = True    # 是否记录log数据
         
-        self.observation_space = convert_observation_to_space(self.reset()[0])
+        # self.observation_space = convert_observation_to_space(self.reset()[0])
+        self.reset()
+        self.observation_space = gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(6,), dtype=np.float32)
         self.action_space      = gym.spaces.Box(low=-1.0, high=1.0, shape=(3,), dtype=np.float32)  # avoid the open range caused by 'tanh' in SAC algorithm
         # self.action_space = gym.spaces.Box(low=np.array([-9.8, -20, -20, -2]), high=np.array([30, 20, 20, 2]))
 
@@ -119,8 +121,9 @@ class DroneEnv(gym.Env):
         # poscost = 10 / (err_xy + 1) + 20 / (err_z + 1)
         poscost = 20 / (np.linalg.norm(obs.pos) + 1)
         velcost = 1 / (np.linalg.norm(obs.vel) + 1)
+        z_cost = 5 * np.exp(-np.abs(obs.pos[2]))
 
-        cost = yawcost + poscost + velcost
+        cost = yawcost + poscost + velcost + z_cost
 
         return cost
   

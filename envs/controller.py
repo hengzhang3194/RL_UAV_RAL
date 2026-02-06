@@ -102,7 +102,7 @@ class Controller:
             self.vel_ref = np.zeros(3)
             
             # 位置环采取MRAC，姿态环采取非线性反馈控制
-            self.kx = np.zeros((3, 6))     
+            self.kx = np.zeros((3, 6))
             self.kr = np.zeros((3, 3))
             self.theta = np.zeros((6, 3))  
             self.gamma_x = 0.005 * np.eye(6)
@@ -114,47 +114,6 @@ class Controller:
 
             ############ 从文件中读取控制器参数的初值
             # data_gain = np.load('Data/controller_gains.npz')
-            # self.kx = data_gain['kx'][-1].reshape(3, 6)
-            # self.kr = data_gain['kr'][-1].reshape(3, 3)
-            # self.theta = data_gain['theta'][-1].reshape(6, 3)
-
-
-
-        elif self.controller_flag == 'MRAC_regressor':
-            # system matrix of reference model
-            self.Am_k = 3
-            self.A = np.block([
-                [np.zeros((3, 3)), np.eye(3)],   # 第一行
-                [np.zeros((3, 3)), np.zeros((3, 3))]  # 第二行
-                ])
-            self.B = np.block([
-                [np.zeros((3, 3))],   # 第一行
-                [np.eye(3) / self.mass]  # 第二行
-                ])
-            self.C = np.block([
-                np.eye(3), np.zeros((3, 3))])
-            self.Am = np.block([
-                [np.zeros((3, 3)), np.eye(3)],   # 第一行
-                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]  # 第二行
-                ])
-            
-            # state of reference model
-            self.pos_ref = np.zeros(3)
-            self.vel_ref = np.zeros(3)
-            
-            # 位置环采取MRAC，姿态环采取非线性反馈控制
-            self.kx = np.zeros((3, 6))     
-            self.kr = np.zeros((3, 3))
-            self.theta = np.zeros((6, 3))  
-            self.gamma_x = 0.005 * np.eye(6)
-            self.gamma_r = 0.0003 * np.eye(3)
-            self.gamma_theta = 0.0003 * np.eye(6)
-            self.Q = -900 * np.eye(6)  # Q 必须是对称的
-            # 求解 Lyapunov 方程
-            self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
-
-            ############ 从文件中读取控制器参数的初值
-            # data_gain = np.load(path+'.npz')
             # self.kx = data_gain['kx'][-1].reshape(3, 6)
             # self.kr = data_gain['kr'][-1].reshape(3, 3)
             # self.theta = data_gain['theta'][-1].reshape(6, 3)
@@ -175,12 +134,12 @@ class Controller:
 
         elif self.controller_flag == 'RL':
             # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 12
+            obs_dims = 6
             act_dims = 3
             hidden_size=[256, 256]
 
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260125_235953/ckpts/latest/pi.pth' # 5000
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260204_232530/ckpts/8600/pi.pth' # 5000
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -206,7 +165,7 @@ class Controller:
 
         elif self.controller_flag == 'RL_gazebo':
             # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 15
+            obs_dims = 6
             act_dims = 3
             hidden_size=[256, 256]
 
@@ -263,7 +222,7 @@ class Controller:
 
         elif self.controller_flag == 'RL_MRAC':
             # system matrix of reference model
-            self.Am_k = 3
+            self.Am_k = 3 / self.mass
             self.B = np.block([[np.zeros((3, 3))], 
                                [np.eye(3) / self.mass]])
             self.Am = np.block([[np.zeros((3, 3)), np.eye(3)], 
@@ -271,13 +230,13 @@ class Controller:
                 ])
             
             # 位置环采取MRAC，姿态环采取非线性反馈控制
-            self.kx = np.zeros((3, 6))     
+            self.kx = np.zeros((3, 6))
             self.kr = np.zeros((3, 3))
             self.theta = np.zeros((6, 3))  
-            self.gamma_x = 0.005 * np.eye(6)
+            self.gamma_x = 0.003 * np.eye(6)
             self.gamma_r = 0.0003 * np.eye(3)
             self.gamma_theta = 0.003 * np.eye(6)
-            self.Q = -900 * np.eye(6)  # Q 必须是对称的
+            self.Q = -1500 * np.eye(6)  # Q 必须是对称的
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
 
             ############ 从文件中读取控制器参数的初值
@@ -292,8 +251,8 @@ class Controller:
             # self.pos_ref_all = RL_data[['x_ref', 'y_ref', 'z_ref']].to_numpy()
             # self.vel_ref_all = RL_data[['vx_ref', 'vy_ref', 'vz_ref']].to_numpy()
             # self.ref_input_all = RL_data[['force_x', 'force_y', 'force_z']].to_numpy()
-            self.pos_ref_all = RL_data[['pos_x', 'pos_y', 'pos_z']].to_numpy()
-            self.vel_ref_all = RL_data[['vel_x', 'vel_y', 'vel_z']].to_numpy()
+            self.pos_ref_all = RL_data[['pos_xd', 'pos_yd', 'pos_zd']].to_numpy()
+            self.vel_ref_all = RL_data[['vel_xd', 'vel_yd', 'vel_zd']].to_numpy()
             self.ref_input_all = RL_data[['force_x', 'force_y', 'force_z']].to_numpy()
             self.tradjectory_index = 0
             self.pos_ref = np.zeros(3)
@@ -801,7 +760,8 @@ class Controller:
     #####################################
     def RL(self, obs_flag, state_des):
         if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            obs = np.hstack((self.pos_error, self.vel_error))
+            # obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             std = log_std.exp()
@@ -809,9 +769,8 @@ class Controller:
             action = torch.tanh(mean).detach().cpu().numpy()
                 
             # RL controller 处理
-            self.force_controller[0] = action[0] * 0.5 * self.mass * self.g
-            self.force_controller[1] = action[1] * 0.5 * self.mass * self.g
-            self.force_controller[2] = action[2] * self.mass * self.g
+            force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
+            self.force_controller = action * force_scale
             
         action_pos = self.force_controller
 
