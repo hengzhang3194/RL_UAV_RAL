@@ -90,7 +90,7 @@ while steps <= max_steps:
         # 获取当前时刻的期望轨迹的信息
         state_des = desired_trajectory.get_desired_trajectory(drone.state.time)
 
-        action = agent.get_action(obs[0:6], deterministic=False)
+        action = agent.get_action(obs, deterministic=False)
         next_obs = obs
 
         # --- 初始化累加变量 ---
@@ -115,7 +115,7 @@ while steps <= max_steps:
             cumulative_reward += reward
                 
         reward = cumulative_reward
-        buffer.push(obs[0:6], action, reward, next_obs[0:6], terminated, truncated)      # 将数据存入缓冲区
+        buffer.push(obs, action, reward, next_obs, terminated, truncated)      # 将数据存入缓冲区
         obs = next_obs
         obs_flag = False
 

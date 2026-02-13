@@ -954,7 +954,7 @@ def all_points_margin(data, margin=0.1):
 
 if __name__ == '__main__':
     data_path = '/Data/RL_MRAC_flare'
-    # data_path = '/Data/RL_MRAC'
+    # data_path = '/Data/NFC_real'
     # data_path = '/Data/RL_data'
 
 
@@ -976,9 +976,9 @@ if __name__ == '__main__':
     plot_rms_comparison(xy_rms_results, xyz_rms_results)
 
 
-    # npz_path = '/Data/controller_gains.npz'
-    log2 = load_npz_data(data_path + '.npz')
-    plot_controller_gains(log2)
+    # # npz_path = '/Data/controller_gains.npz'
+    # log2 = load_npz_data(data_path + '.npz')
+    # plot_controller_gains(log2)
 
     plt.show()
 

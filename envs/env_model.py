@@ -49,6 +49,7 @@ class DroneEnv(gym.Env):
         self.dt = 1.0 / attitude_frequency  # 控制采样间隔
         hovering_throttle = 0.4     # 悬停油门
         self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
+        self.action_last = np.zeros(3) # 上一时刻的action
 
         # 设置状态约束边界
         self.DEG2RAD = math.pi / 180        # 0.017453292519943295
@@ -76,7 +77,7 @@ class DroneEnv(gym.Env):
         
         # self.observation_space = convert_observation_to_space(self.reset()[0])
         self.reset()
-        self.observation_space = gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(6,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(12,), dtype=np.float32)
         self.action_space      = gym.spaces.Box(low=-1.0, high=1.0, shape=(3,), dtype=np.float32)  # avoid the open range caused by 'tanh' in SAC algorithm
         # self.action_space = gym.spaces.Box(low=np.array([-9.8, -20, -20, -2]), high=np.array([30, 20, 20, 2]))
 
@@ -113,17 +114,31 @@ class DroneEnv(gym.Env):
 
 
 
-    def reward(self, obs):
-        yawcost = 0.5 * np.abs(obs.att[2])
+    # def reward(self, obs):
+    #     yawcost = 0.5 * np.abs(obs.att[2])
 
-        # err_xy = np.linalg.norm(obs.pos[:2])
-        # err_z = np.abs(obs.pos[2])
-        # poscost = 10 / (err_xy + 1) + 20 / (err_z + 1)
+    #     # err_xy = np.linalg.norm(obs.pos[:2])
+    #     # err_z = np.abs(obs.pos[2])
+    #     # poscost = 10 / (err_xy + 1) + 20 / (err_z + 1)
+    #     poscost = 20 / (np.linalg.norm(obs.pos) + 1)
+    #     velcost = 1 / (np.linalg.norm(obs.vel) + 1)
+    #     z_cost = 5 * np.exp(-np.abs(obs.pos[2]))
+
+    #     cost = yawcost + poscost + velcost + z_cost
+
+    #     return cost
+    def reward(self, obs, last_action, current_action):
+        action_diff = np.linalg.norm(current_action - last_action)
+        smooth_cost = 2.0 * action_diff 
+
+        # 3. 动作幅值惩罚 (Control Effort)
+        effort_cost = 0.1 * np.linalg.norm(current_action)
+
         poscost = 20 / (np.linalg.norm(obs.pos) + 1)
         velcost = 1 / (np.linalg.norm(obs.vel) + 1)
         z_cost = 5 * np.exp(-np.abs(obs.pos[2]))
 
-        cost = yawcost + poscost + velcost + z_cost
+        cost = poscost + velcost + z_cost - smooth_cost - effort_cost
 
         return cost
   
@@ -173,7 +188,8 @@ class DroneEnv(gym.Env):
                                       self.obs.ang], axis=0)
 
 
-        reward = self.reward(self.obs)
+        reward = self.reward(self.obs, self.action_last, action_pos)
+        self.action_last = action_pos
 
         # conditions of termination
         terminated = False  # only current reward
