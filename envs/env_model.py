@@ -42,7 +42,7 @@ class DroneEnv(gym.Env):
         self.inertial_inv = np.linalg.inv(self.inertial)
 
 
-        self.duration = 300.0     # 仿真时长
+        self.duration = 130.0     # 仿真时长
         position_frequency = 20.0
         attitude_frequency = 200.0
         self.pos_att_power = round(attitude_frequency / position_frequency)

@@ -68,7 +68,16 @@ class Controller:
             self.s_pos = np.zeros(3)       # auxiliary variable
             self.sum_s_pos = np.zeros(3)
             self.Gamma_pos = 5
-            self.K_pos = np.array([2, 2, 10]) * 0.5
+            # self.K_pos = np.array([2, 2, 10]) * 0.5
+            self.K_pos = np.array([50, 50, 20]) * 0.5
+            self.Ki_pos = np.array([5, 5, 5]) * 0.2
+
+        elif self.controller_flag == 'NFC_model':
+            # position loop 参数
+            self.s_pos = np.zeros(3)       # auxiliary variable
+            self.sum_s_pos = np.zeros(3)
+            self.Gamma_pos = 5
+            self.K_pos = np.array([50, 50, 20]) * 0.5
             self.Ki_pos = np.array([5, 5, 5]) * 0.2
 
         elif self.controller_flag == 'NFC_gazebo':
@@ -409,6 +418,43 @@ class Controller:
     
 
 
+    #####################################
+    # NFC for model
+    #####################################
+    def NFC_model(self, obs_flag, state_des):
+        if obs_flag:
+            ### Translation control
+            self.pos_error = self.pos - self.pos_des
+            self.vel_error = self.vel - self.vel_des
+
+            self.s_pos = self.vel_error + self.Gamma_pos * self.pos_error
+            self.sum_s_pos = self.sum_s_pos + self.s_pos * self.dt * 10 # 将采样时间从姿态环变成位置环
+
+            self.M = self.mass * np.eye(3)
+            self.G = self.mass * np.array([0, 0, self.g])
+            
+            self.vel_ref = self.vel_des - self.Gamma_pos * self.pos_error
+            self.acc_ref = self.acc_des - self.Gamma_pos * self.vel_error
+
+            thrust = np.dot(self.M, self.acc_ref) + self.G - self.K_pos * self.s_pos - self.Ki_pos * self.sum_s_pos
+
+            # Control constrain
+            thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
+            thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
+            thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+
+            # pdb.set_trace()
+            self.force_controller = thrust
+
+        action_pos = self.force_controller
+
+        # 计算姿态环控制器
+        action_att = self.controller_att.NFC_att(action_pos, self.att, self.ang, state_des)
+        action = np.concatenate([action_pos, action_att], axis=0)
+
+        return action
+
+    
     #####################################
     # NFC : for Flare
     #####################################
@@ -1075,6 +1121,8 @@ class Controller:
 
         if self.controller_flag == 'NFC':
             action = self.NFC(obs_flag, state_des)
+        elif self.controller_flag == 'NFC_model':
+            action = self.NFC_model(obs_flag, state_des)
         elif self.controller_flag == 'NFC_gazebo':
             action = self.NFC_gazebo(obs_flag, state_des)
 

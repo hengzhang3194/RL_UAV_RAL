@@ -966,12 +966,12 @@ if __name__ == '__main__':
 
     # plot_throttle(log)
     # plot_3d_trajectory(log['pos'], log['vel'], log["pos_des"])
-    plot_2d_trajectory_with_time(log['pos'], log["pos_ref"])
+    plot_2d_trajectory_with_time(log['pos'], log["pos_des"])
     # plot_3d_trajectory_with_error2(log['pos'], log["pos_des"])
     # plot_3d_trajectory_with_nearest_error_and_matches(log['pos'], log["pos_des"])
 
     # # 画每一圈的RMS的柱状图
-    error_signal = log['pos'] - log['pos_ref']
+    error_signal = log['pos'] - log['pos_des']
     xy_rms_results, xyz_rms_results = compute_segmented_rms(error_signal, start_index=2000, segment_length=4000)  # segment_length是要分段的数据的长度
     plot_rms_comparison(xy_rms_results, xyz_rms_results)
 
