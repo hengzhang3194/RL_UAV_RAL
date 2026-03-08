@@ -42,7 +42,7 @@ class DroneEnv(gym.Env):
         self.inertial_inv = np.linalg.inv(self.inertial)
 
 
-        self.duration = 130.0     # 仿真时长
+        self.duration = 300.0     # 仿真时长
         position_frequency = 20.0
         attitude_frequency = 200.0
         self.pos_att_power = round(attitude_frequency / position_frequency)
@@ -158,7 +158,8 @@ class DroneEnv(gym.Env):
 
         # force
         state_pos = np.concatenate([self.state.pos, self.state.vel], axis=0)
-        state_update = self.Am @ state_pos + self.B @ action_pos
+        # state_update = self.Am @ state_pos + self.B @ action_pos + np.array([0, 0, 0, 0, 0, -self.g])
+        state_update = self.A @ state_pos + self.B @ action_pos + np.array([0, 0, 0, 0, 0, -self.g])
         next_state = state_pos + state_update * self.dt 
         (self.state.pos, self.state.vel) = next_state.reshape(2, 3)
 

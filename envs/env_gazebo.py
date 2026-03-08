@@ -151,8 +151,7 @@ class DroneEnv(gym.Env):
 
 
         # publish 角速度命令
-        if self.seq == 1:
-            
+        if self.seq <= 10:
             self.flightModeService(custom_mode='OFFBOARD')
         self.att_pub()
         self.rate.sleep()

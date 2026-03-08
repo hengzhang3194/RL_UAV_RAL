@@ -322,7 +322,7 @@ class Desired_trajectory:
             '''
             给定一个z轴的起点和终点，创建一个随指数衰减的起飞/landing曲线。
             '''
-            z_start = 0.4
+            z_start = 0.0
             z_end = 1.0
             z_rate = 0.8     # how fast to land
 

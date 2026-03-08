@@ -21,7 +21,7 @@ from envs.controller import Controller
 
 drone = DroneEnv_flare()
 controller1 = Controller(controller_flag='NFC')
-controller2 = Controller(controller_flag='NFC')
+controller2 = Controller(controller_flag='RL_MRAC')
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
 
@@ -35,6 +35,7 @@ np.set_printoptions(precision=3, suppress=True, floatmode='fixed', linewidth=150
 start_timestamp = time.perf_counter()
 _, obs = drone.reset()
 obs_flag = False
+state_des_old = None
 last_export_time = time.time()
 while (drone.state.time <= drone.duration):
     export_time = time.time()
@@ -49,11 +50,16 @@ while (drone.state.time <= drone.duration):
 
     # 获取当前时刻的期望轨迹的信息
     state_des = desired_trajectory.get_desired_trajectory(drone.state.time)
+    if state_des_old is None:
+        state_des_old = state_des
 
     print(f'Exporting {drone.seq}th ({drone.state.time:.2f}/{drone.duration}s complete), time ratio: {drone.dt / ((export_time - last_export_time) + 1e-10) * 100:.2f}%')
 
-    action = controller.get_controller(obs, state_des, obs_flag)
+    # pdb.set_trace()
+    action = controller.get_controller(obs, state_des_old, state_des, obs_flag)
     print(f"Action is {action}.")
+
+    state_des_old = state_des
 
 
 

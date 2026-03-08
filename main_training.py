@@ -93,21 +93,23 @@ while steps <= max_steps:
         action = agent.get_action(obs, deterministic=False)
         next_obs = obs
 
+        act_pos = np.zeros(3)
+        act_pos[0] = action[0] * 0.5 * drone.mass * drone.g
+        act_pos[1] = action[1] * 0.5 * drone.mass * drone.g
+        act_pos[2] = (action[2] + 1) * drone.mass * drone.g
+        # pos = next_obs[0:3] + state_des.pos
+        # vel = next_obs[3:6] + state_des.vel
+        # act_pos = act_pos - 3.0 * pos - 3.0 * vel
+
         # --- 初始化累加变量 ---
         cumulative_reward = 0.0
 
         # 仿真姿态环，确保obs是位置环的频率。
         while not obs_flag:
-            pos = next_obs[0:3] + state_des.pos
-            vel = next_obs[3:6] + state_des.vel
             att = next_obs[6:9] + state_des.att
             ang = next_obs[9:12] + state_des.ang
             # scale = np.array([6, 6, 13])    # 13 = 1.32*9.8
-            act_pos = np.zeros(3)
-            act_pos[0] = action[0] * 0.5 * drone.mass * drone.g
-            act_pos[1] = action[1] * 0.5 * drone.mass * drone.g
-            act_pos[2] = action[2] * drone.mass * drone.g
-           
+            
             act_att = controller_att.NFC_att(act_pos, att, ang, state_des)
             act = np.concatenate([act_pos, act_att], axis=0)
             next_obs, reward, terminated, truncated, info = drone.step(act, state_des)
