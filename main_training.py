@@ -27,7 +27,7 @@ import pdb
 # drone = DroneEnv_flare(localhost=25556)
 drone = DroneEnv_model(localhost=25555)
 desired_trajectory = Desired_trajectory(trajectory_flag='horizon_eight')
-controller_att = Controller_Attitude()
+controller_att = Controller_Attitude(controller_flag='px4_att')
 
 log = defaultdict(list)  # 用于存储信息的字典
 
@@ -110,7 +110,7 @@ while steps <= max_steps:
             ang = next_obs[9:12] + state_des.ang
             # scale = np.array([6, 6, 13])    # 13 = 1.32*9.8
             
-            act_att = controller_att.NFC_att(act_pos, att, ang, state_des)
+            act_att = controller_att.px4_att(act_pos, att, ang, state_des)
             act = np.concatenate([act_pos, act_att], axis=0)
             next_obs, reward, terminated, truncated, info = drone.step(act, state_des)
             obs_flag = info["obs_flag"]

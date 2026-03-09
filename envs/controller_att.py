@@ -53,6 +53,22 @@ class Controller_Attitude:
 
             self.temp_ang = np.zeros(3) # 存储当前的3维“姿态速度”，以方便计算“姿态加速度”。
 
+        elif self.controller_flag == 'px4_att':
+
+            # --- 姿态环参数 (Angle P Loop) ---
+            self.KP_ATT = np.array([6.5, 6.5, 2.8]) # 典型PX4增益
+            
+            # --- 角速度环参数 (Rate PID Loop) ---
+            self.KP_RATE = np.array([0.15, 0.15, 0.2])
+            self.KI_RATE = np.array([0.05, 0.05, 0.1])
+            self.KD_RATE = np.array([0.003, 0.003, 0.0])
+            
+            # 状态累计
+            self.rate_integral = np.zeros(3)
+            self.last_ang_error = np.zeros(3)
+
+            self.temp_ang = np.zeros(3) # 存储当前的3维“姿态速度”，以方便计算“姿态加速度”。
+
 
     def NFC_att(self, force, att, ang, state_des):
         # att is system attitude
@@ -84,6 +100,45 @@ class Controller_Attitude:
         action = np.array([thrust_body, tau_roll, tau_pitch, tau_yaw])
 
         return action
+    
+    def px4_att(self, force, att, ang, state_des):
+        att_des = state_des.att
+        ang_des = state_des.ang
+        thrust_body, att_des = self.Decomposition1(force, att_des)
+        
+        # 1. 姿态环 (Outer Loop: P Control)
+        # 计算欧拉角偏差 (注意：PX4底层实际用四元数，这里用欧拉角简化模拟)
+        att_error = att_des - att
+        # 这里的输出是期望角速度 (Rate Setpoint)
+        ang_des = self.KP_ATT * att_error
+        
+        # 2. 角速度环 (Inner Loop: PID Control)
+        ang_error = ang_des - ang
+        
+        # 积分项 (带抗饱和抗积分风暴)
+        self.rate_integral += ang_error * self.dt
+        self.rate_integral = np.clip(self.rate_integral, -0.3, 0.3)
+        
+        # 微分项
+        ang_deriv = (ang_error - self.last_ang_error) / self.dt
+        self.last_ang_error = ang_error
+        
+        # 计算归一化力矩输出 (PID)
+        # 注意：Gazebo底层通常先计算一个无量纲的控制量，再乘以增益
+        torque_controller = (self.KP_RATE * ang_error + 
+                         self.KI_RATE * self.rate_integral + 
+                         self.KD_RATE * ang_deriv)
+        
+        # Control constrain
+        max_torque = 1.0
+        torque_controller = np.clip(torque_controller, -max_torque, max_torque)
+
+        tau_roll, tau_pitch, tau_yaw = torque_controller
+        action = np.array([thrust_body, tau_roll, tau_pitch, tau_yaw])
+        
+        
+        return action
+    
 
     def Decomposition1(self, force, att_des):
         ddx, ddy, ddz = force / self.mass
