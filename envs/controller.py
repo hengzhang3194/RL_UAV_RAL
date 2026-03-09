@@ -47,7 +47,7 @@ class Controller:
 
         # 获取所选控制器的参数
         self.controller_flag = controller_flag
-        self.controller_att = Controller_Attitude()
+        self.controller_att = Controller_Attitude(controller_flag='NFC_att')
         self.get_controller_parameters()
 
 
@@ -64,21 +64,13 @@ class Controller:
         - 'RL-DR+NFC': position-loop is RL with domain randomization, attitude-loop is Nonlinear Feedback Controller.
         - 'MRAC_full_model': full model is MRAC.
         '''
-        if self.controller_flag == 'NFC':
+        if self.controller_flag in ['NFC_model', 'NFC_flare']:
             # position loop 参数
             self.s_pos = np.zeros(3)       # auxiliary variable
             self.sum_s_pos = np.zeros(3)
             self.Gamma_pos = 5
             self.K_pos = np.array([2, 2, 10]) * 0.5
             # self.K_pos = np.array([50, 50, 20]) * 0.5
-            self.Ki_pos = np.array([5, 5, 5]) * 0.2
-
-        elif self.controller_flag == 'NFC_model':
-            # position loop 参数
-            self.s_pos = np.zeros(3)       # auxiliary variable
-            self.sum_s_pos = np.zeros(3)
-            self.Gamma_pos = 5
-            self.K_pos = np.array([2, 2, 10]) * 0.5
             self.Ki_pos = np.array([5, 5, 5]) * 0.2
 
         elif self.controller_flag == 'NFC_gazebo':
@@ -151,7 +143,7 @@ class Controller:
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260210_222529/ckpts/5000/pi.pth' # 5000, 8600
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260210_222529/ckpts/8600/pi.pth' # 5000, 8600
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260307_165154/ckpts/7600/pi.pth'
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/latest/pi.pth'
 
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
@@ -233,7 +225,7 @@ class Controller:
             self.ay_vals = np.array(data['/action']['y']) * 6.0
             self.az_vals = np.array(data['/action']['z']) * 13.0
 
-        elif self.controller_flag == 'RL_MRAC':
+        elif self.controller_flag == 'RL_MRAC_flare':
             # system matrix of reference model
             self.Am_k = 3.0
             self.B = np.block([[np.zeros((3, 3))], 
@@ -462,7 +454,7 @@ class Controller:
     #####################################
     # NFC : for Flare
     #####################################
-    def NFC(self, obs_flag, state_des):
+    def NFC_flare(self, obs_flag, state_des):
         if obs_flag:
             ### Translation control
             self.pos_error = self.pos - self.pos_des
@@ -581,7 +573,7 @@ class Controller:
     #####################################
     # MRAC for Gazebo
     #####################################
-    def mrac_gazebo(self, obs_flag, state_des):
+    def RL_MRAC_gazebo(self, obs_flag, state_des):
         ### Translation control
         self.pos_error = self.pos_ref - self.pos
         self.vel_error = self.vel_ref - self.vel
@@ -728,7 +720,7 @@ class Controller:
             self.force_controller = action * force_scale 
 
         self.G = self.mass * np.array([0, 0, self.g])
-        action_pos = self.force_controller + self.G
+        action_pos = self.force_controller + self.G - 3.0 * self.pos - 3.0 * self.vel
 
         # 计算姿态环控制器
         action_att = self.controller_att.NFC_att(action_pos, self.att, self.ang, state_des)
@@ -755,7 +747,7 @@ class Controller:
             # self.force_controller = action * force_scale + 3*self.mass * self.pos + 3*self.mass * self.vel
 
         self.G = self.mass * np.array([0, 0, self.g])
-        action_pos = self.force_controller + self.G
+        action_pos = self.force_controller + self.G - 3.0 * self.pos - 3.0 * self.vel
 
         # 计算姿态环控制器
         action_att = self.controller_att.NFC_att(action_pos, self.att, self.ang, state_des)
@@ -1081,8 +1073,8 @@ class Controller:
         self.att = self.att_error + state_des_old.att
         self.ang = self.ang_error + state_des_old.ang
 
-        if self.controller_flag == 'NFC':
-            action = self.NFC(obs_flag, state_des)
+        if self.controller_flag == 'NFC_flare':
+            action = self.NFC_flare(obs_flag, state_des)
         elif self.controller_flag == 'NFC_model':
             action = self.NFC_model(obs_flag, state_des)
         elif self.controller_flag == 'NFC_gazebo':
@@ -1092,7 +1084,7 @@ class Controller:
             self.ref_input = self.pos_des
             self.model_linear_update()
             action = self.mrac_controller(obs_flag, state_des)  
-        elif self.controller_flag == 'RL_MRAC':
+        elif self.controller_flag == 'RL_MRAC_flare':
             index = round(self.time / self.dt)
             self.pos_ref = self.pos_ref_all[index]
             self.vel_ref = self.vel_ref_all[index]
@@ -1103,7 +1095,7 @@ class Controller:
             self.pos_ref = self.pos_ref_all[index]
             self.vel_ref = self.vel_ref_all[index]
             self.ref_input = self.ref_input_all[index]
-            action = self.mrac_gazebo(obs_flag, state_des) 
+            action = self.RL_MRAC_gazebo(obs_flag, state_des) 
 
         elif self.controller_flag == 'NFC_regressor':
             action = self.NFC_regressor(obs_flag, state_des)

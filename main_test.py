@@ -18,12 +18,16 @@ from envs.desired_trajectory import Desired_trajectory
 from envs.controller import Controller
 # from envs.env_gazebo import DroneEnv
 
+# 选择控制算法，以及应用平台
+platform = 'model'  # 可选: 'model', 'flare', 'gazebo', 'real'
+base_name = 'RL'    # 可选: 'NFC', 'PID', 'RL'
 
-drone = DroneEnv_flare()
+drone = DroneEnv_model()
 controller1 = Controller(controller_flag='NFC')
-controller2 = Controller(controller_flag='RL_MRAC')
+controller2 = Controller(controller_flag=f"{base_name}_{platform}" )
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
+# Candidate: smooth_curve, horizon_eight, waypoint, horizon_circle, *bezier, spiral
 
 log = defaultdict(list)  # 用于存储信息的字典
 

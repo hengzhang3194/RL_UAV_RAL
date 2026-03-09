@@ -85,21 +85,34 @@ class Desired_trajectory:
         
 
         elif self.trajectory_flag == 'horizon_circle':
-            hovering_time = 6
+            hovering_time = 5
             start_time = 10
-            pos_z = 1.12
+            pos_z = 1.0
             radius = 1.5  # 圆形轨迹半径（m）
             omega = 0.5  # 角速度（rad/s），控制转圈速度（2π/ω 为周期）
-            if t < hovering_time:
-                self.state.pos = np.array([0.0, 0.0, pos_z])
-                self.state.vel = np.array([0.0, 0.0, 0.0])
-                self.state.acc = np.array([0.0, 0.0, 0.0])
-            elif t < start_time:
-                self.state.pos = np.array([radius, 0.0, pos_z])
-                self.state.vel = np.array([0.0, 0.0, 0.0])
-                self.state.acc = np.array([0.0, 0.0, 0.0])
+            if not hasattr(self, 'horizon_circle_start_time'):
+                self.horizon_circle_start_time = t
+            
+            # 获取该轨迹的相对时间
+            current_time = t - self.horizon_circle_start_time
+
+            # 分阶段平滑进行轨迹
+            if current_time < start_time:
+                start = 0.0
+                end = radius
+                rate = 0.8     # how fast to land
+
+                ax = np.exp(-rate * current_time) * (rate ** 3 * current_time - rate ** 2) * (start - end)
+                vx = np.exp(-rate * current_time) * (-rate ** 2 * current_time) * (start - end)
+                px = np.exp(-rate * current_time) * (1 + rate * current_time) * (start - end) + end
+                
+                self.state.pos = np.array([px, 0.0, pos_z])
+                self.state.vel = np.array([vx, 0.0, 0.0])
+                self.state.acc = np.array([ax, 0.0, 0.0])
+            
+
             else:
-                theta = omega * (t - start_time)  # 角度随时间变化：θ = ω·t'
+                theta = omega * (current_time - start_time)  # 角度随时间变化：θ = ω·t'
 
                 self.state.pos = np.array([
                     radius * np.cos(theta),     # x = r·cosθ
