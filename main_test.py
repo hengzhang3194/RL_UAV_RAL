@@ -35,15 +35,16 @@ env_name = {
 }
 
 # 选择控制算法，以及应用平台
-platform = 'nomodel'  # 可选: 'model', 'nomodel', 'flare', 'gazebo', 'real'
+platform = 'model'  # 可选: 'model', 'nomodel', 'flare', 'gazebo', 'real'
 control_name = 'RL'    # 可选: 'NFC', 'PID', 'RL'
+trajectory_name = 'horizon_star'   # Candidate: smooth_curve, horizon_eight, waypoint, horizon_circle, *bezier, spiral, horizon_star
 
 drone = env_name.get(platform)(duration=50) # 仿真时间
 controller1 = Controller(controller_flag='NFC')
 controller2 = Controller(controller_flag=f"{control_name}_{platform}" )
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
-desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
-# Candidate: smooth_curve, horizon_eight, waypoint, horizon_circle, *bezier, spiral
+desired_trajectory2 = Desired_trajectory(trajectory_flag=trajectory_name)
+
 
 log = defaultdict(list)  # 用于存储信息的字典
 

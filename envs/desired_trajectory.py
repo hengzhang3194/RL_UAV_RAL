@@ -85,34 +85,34 @@ class Desired_trajectory:
         
 
         elif self.trajectory_flag == 'horizon_circle':
-            hovering_time = 5
-            start_time = 10
+            point_time = 10 # 到达指定点的时间
             pos_z = 1.0
             radius = 1.5  # 圆形轨迹半径（m）
             omega = 0.5  # 角速度（rad/s），控制转圈速度（2π/ω 为周期）
-            if not hasattr(self, 'horizon_circle_start_time'):
-                self.horizon_circle_start_time = t
+            if not hasattr(self, 'start_time'):
+                self.start_time = t
             
             # 获取该轨迹的相对时间
-            current_time = t - self.horizon_circle_start_time
+            tau = t - self.start_time
 
             # 分阶段平滑进行轨迹
-            if current_time < start_time:
+            if tau < point_time:
                 start = 0.0
                 end = radius
-                rate = 0.8     # how fast to land
+                duration = 10     # 规划的执行时间
+                self.goto_point(tau, start, end, duration)
+                
 
-                ax = np.exp(-rate * current_time) * (rate ** 3 * current_time - rate ** 2) * (start - end)
-                vx = np.exp(-rate * current_time) * (-rate ** 2 * current_time) * (start - end)
-                px = np.exp(-rate * current_time) * (1 + rate * current_time) * (start - end) + end
+                ax = np.exp(-rate * tau) * (rate ** 3 * tau - rate ** 2) * (start - end)
+                vx = np.exp(-rate * tau) * (-rate ** 2 * tau) * (start - end)
+                px = np.exp(-rate * tau) * (1 + rate * tau) * (start - end) + end
                 
                 self.state.pos = np.array([px, 0.0, pos_z])
                 self.state.vel = np.array([vx, 0.0, 0.0])
                 self.state.acc = np.array([ax, 0.0, 0.0])
             
-
             else:
-                theta = omega * (current_time - start_time)  # 角度随时间变化：θ = ω·t'
+                theta = omega * (tau - start_time)  # 角度随时间变化：θ = ω·t'
 
                 self.state.pos = np.array([
                     radius * np.cos(theta),     # x = r·cosθ
@@ -227,19 +227,25 @@ class Desired_trajectory:
             scale_x = 1.0   # 幅值 [m]
             scale_y = 0.5
 
+            if not hasattr(self, 'start_time'):
+                self.start_time = t
+            
+            # 获取该轨迹的相对时间
+            tau = t - self.start_time
+
             # Lissajous曲线 x = sin(t), y = sin(2t)
             # 调整其频率和振幅以满足速度要求
             omega = 2 * np.pi / period      # 角频率
-            px = scale_x * np.sin(omega * t)
-            py = scale_y * np.sin(2 * omega * t)
+            px = scale_x * np.sin(omega * tau)
+            py = scale_y * np.sin(2 * omega * tau)
             pz = 1.0
 
             # 计算速度
-            vx = scale_x * omega * np.cos(omega * t)
-            vy = scale_y * 2 * omega * np.cos(2 * omega * t)
+            vx = scale_x * omega * np.cos(omega * tau)
+            vy = scale_y * 2 * omega * np.cos(2 * omega * tau)
             vz = 0.0
-            ax = -1 * scale_x * omega * omega * np.sin(omega * t)
-            ay = -1 * scale_y * 4 * omega * omega * np.sin(2 * omega * t)
+            ax = -1 * scale_x * omega * omega * np.sin(omega * tau)
+            ay = -1 * scale_y * 4 * omega * omega * np.sin(2 * omega * tau)
             az = 0.0
 
             self.state.pos = np.array([px, py, pz])
@@ -331,7 +337,7 @@ class Desired_trajectory:
             self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
             self.state.ang = np.array([0.0, 0.0, 0.0])
 
-        elif self.trajectory_flag == 'smooth_curve':
+        elif self.trajectory_flag == 'smooth_landing':
             '''
             给定一个z轴的起点和终点，创建一个随指数衰减的起飞/landing曲线。
             '''
@@ -344,6 +350,37 @@ class Desired_trajectory:
             vz = np.exp(-z_rate * t) * (-z_rate ** 2 * t) * (z_start - z_end)
             pz = np.exp(-z_rate * t) * (1 + z_rate * t) * (
                         z_start - z_end) + z_end
+
+            px, py = 0.0, 0.0
+            vx, vy = 0.0, 0.0
+            ax, ay = 0.0, 0.0
+            self.state.pos = np.array([px, py, pz])
+            self.state.vel = np.array([vx, vy, vz])
+            self.state.acc = np.array([ax, ay, az])
+            self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
+            self.state.ang = np.array([0.0, 0.0, 0.0])
+
+        elif self.trajectory_flag == 'smooth_curve':
+            '''五次多项式公式，确保初始和结束的速度平滑'''
+            z_start = 0.0
+            z_end = 1.0
+            T = 8.0  # 任务执行时间
+
+            if t >= T:
+                # 超过时间后，停在终点
+                pz, vz, az = z_end, 0.0, 0.0
+            else:
+                
+                # p(s) = z_start + (z_end - z_start) * (10s^3 - 15s^4 + 6s^5)
+                s = t / T   # s 是归一化进度 [0, 1]
+                poly_p = 10 * s**3 - 15 * s**4 + 6 * s**5
+                poly_v = (30 * s**2 - 60 * s**3 + 30 * s**4) / T
+                poly_a = (60 * s - 180 * s**2 + 120 * s**3) / (T**2)
+
+                dist = z_end - z_start
+                pz = z_start + dist * poly_p
+                vz = dist * poly_v
+                az = dist * poly_a
 
             px, py = 0.0, 0.0
             vx, vy = 0.0, 0.0
@@ -367,6 +404,57 @@ class Desired_trajectory:
             pz, py = 1.0, 0.0
             vz, vy = 0.0, 0.0
             az, ay = 0.0, 0.0
+            self.state.pos = np.array([px, py, pz])
+            self.state.vel = np.array([vx, vy, vz])
+            self.state.acc = np.array([ax, ay, az])
+            self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
+            self.state.ang = np.array([0.0, 0.0, 0.0])
+
+        elif self.trajectory_flag == 'horizon_flower':
+            period = 25.0   # 完成一圈的时间 [s]，五角星建议稍微慢一点
+            scale = 1.0     # 轨迹整体缩放比例
+            
+            # 时间去偏置逻辑 (复用之前讨论的逻辑)
+            if not hasattr(self, 'start_time'):
+                self.start_time = t
+            tau = t - self.start_time
+            
+            # 分阶段平滑进行轨迹
+            if tau < start_time:
+                start = 0.0
+                end = radius
+                rate = 0.8     # how fast to land
+
+                ax = np.exp(-rate * tau) * (rate ** 3 * tau - rate ** 2) * (start - end)
+                vx = np.exp(-rate * tau) * (-rate ** 2 * tau) * (start - end)
+                px = np.exp(-rate * tau) * (1 + rate * tau) * (start - end) + end
+                
+                self.state.pos = np.array([px, 0.0, pos_z])
+                self.state.vel = np.array([vx, 0.0, 0.0])
+                self.state.acc = np.array([ax, 0.0, 0.0])
+            
+            else:
+            omega = 2 * np.pi / period  # 基准频率
+            
+            # 五角星参数方程 (本质是两个频率的叠加)
+            # R: 大圆半径, r: 小圆半径。对于五角星，通常取 R=5r, 或使用如下简化比例：
+            # px = R * ( (1-k)*cos(theta) + l*k*cos((1-k)/k * theta) )
+            # 简化版五角星公式：
+            theta = omega * tau
+            px = scale * (2/3 * np.cos(theta) + 1/3 * np.cos(4 * theta))
+            py = scale * (2/3 * np.sin(theta) - 1/3 * np.sin(4 * theta))
+            pz = 1.0
+
+            # 计算速度 (对位置求一阶导)
+            vx = scale * (-2/3 * omega * np.sin(theta) - 4/3 * omega * np.sin(4 * theta))
+            vy = scale * (2/3 * omega * np.cos(theta) - 4/3 * omega * np.cos(4 * theta))
+            vz = 0.0
+
+            # 计算加速度 (对速度求一阶导)
+            ax = scale * (-2/3 * omega**2 * np.cos(theta) - 16/3 * omega**2 * np.cos(4 * theta))
+            ay = scale * (-2/3 * omega**2 * np.sin(theta) + 16/3 * omega**2 * np.sin(4 * theta))
+            az = 0.0
+
             self.state.pos = np.array([px, py, pz])
             self.state.vel = np.array([vx, vy, vz])
             self.state.acc = np.array([ax, ay, az])
@@ -407,6 +495,30 @@ class Desired_trajectory:
         self.spline_x = interp.make_interp_spline(key_t, key_x, k=5, bc_type=bc)
         self.spline_y = interp.make_interp_spline(key_t, key_y, k=5, bc_type=bc)
         self.spline_z = interp.make_interp_spline(key_t, key_z, k=5, bc_type=bc)
+
+    def goto_point(self, time, start, end, duration):
+        '''
+        time: 当前时间
+        start: 设定的起点
+        end: 设定的终点
+        duration: 任务执行时长
+        '''
+        if time >= duration:
+            # 超过时间后，停在终点
+            pos, vel, acc = end, 0.0, 0.0
+        else:
+            # 5次插值
+            # p(s) = start + (end - start) * (10s^3 - 15s^4 + 6s^5)
+            s = time / duration   # s 是归一化进度 [0, 1]
+            poly_p = 10 * s**3 - 15 * s**4 + 6 * s**5
+            poly_v = (30 * s**2 - 60 * s**3 + 30 * s**4) / duration
+            poly_a = (60 * s - 180 * s**2 + 120 * s**3) / (duration**2)
+
+            dist = end - start
+            pos = start + dist * poly_p
+            vel = dist * poly_v
+            acc = dist * poly_a
+        return pos, vel, acc
 
     def calculate_att(self, acc, t):
         '''

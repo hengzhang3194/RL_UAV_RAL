@@ -124,10 +124,7 @@ class Controller:
             act_dims = 3
             hidden_size=[256, 256]
 
-            # pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
-            # pi_model_path = 'tensorboard/Drone_model/SAC/20260210_222529/ckpts/5000/pi.pth' # 5000, 8600
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260310_123730/ckpts/latest/pi.pth'
-
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/7800/pi.pth'
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -718,7 +715,7 @@ class Controller:
     #####################################
     def RL_model(self, obs_flag, state_des):
         if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error, self.att))
+            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             std = log_std.exp()
@@ -726,12 +723,11 @@ class Controller:
             action = torch.tanh(mean).detach().cpu().numpy()
                 
             # RL controller 处理
-            # action[2] += 1.0
+            action[2] += 1.0
             force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
             self.force_controller = action * force_scale 
 
-        self.G = self.mass * np.array([0, 0, self.g])
-        action_pos = self.force_controller + self.G - 3.0 * self.pos - 3.0 * self.vel
+        action_pos = self.force_controller - 3.0 * self.pos - 3.0 * self.vel
 
         # 计算姿态环控制器
         att_des = state_des.att
@@ -756,16 +752,15 @@ class Controller:
             action = torch.tanh(mean).detach().cpu().numpy()
                 
             # RL controller 处理
-            # action[2] += 1.0
+            action[2] += 1.0
             force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
             self.force_controller = action * force_scale 
-            # self.force_controller = action * force_scale + 3*self.mass * self.pos + 3*self.mass * self.vel
 
-        self.G = self.mass * np.array([0, 0, self.g])
-        action_pos = self.force_controller + self.G - 3.0 * self.pos - 3.0 * self.vel
+        # action_pos = self.force_controller
+        action_pos = self.force_controller - 3.0 * self.pos - 3.0 * self.vel
 
         # 计算姿态环控制器
-        action_att = self.controller_att.NFC_att(action_pos, self.att, self.ang, state_des)
+        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
         action = action_att
 
         return action

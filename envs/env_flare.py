@@ -32,7 +32,7 @@ def convert_observation_to_space(observation):
 ######################################
 class DroneEnv(gym.Env):
 
-    def __init__(self, localhost: int = 25556):
+    def __init__(self, localhost: int = 25556, duration = 30.0):
         super().__init__()
         self.flare = arcpy.Controller('localhost', localhost)
         self.px4 = self.flare.get_object_by_path('Drone/core/px4')
@@ -45,7 +45,7 @@ class DroneEnv(gym.Env):
         self.inertial = np.diag([0.003686, 0.003686, 0.006824])
         self.inertial_inv = np.linalg.inv(self.inertial)
 
-        self.duration = 70.0     # 仿真时长
+        self.duration = duration     # 仿真时长
         position_frequency = 20.0
         attitude_frequency = 200.0
         self.pos_att_power = round(attitude_frequency / position_frequency)
@@ -59,31 +59,11 @@ class DroneEnv(gym.Env):
         self.MAX_ATT = 55 * self.DEG2RAD    # 最大姿态角约束
         self.MAX_ACC = 1.0 * self.g
 
-        #######################################
-        # 让无人机从空中起飞
-        # Start simulation
-        self.flare.start()
-        self.flare.reset()
-        self.sim_dt = self.flare.get_time_step()
-
-        # 初始化之后，让无人机起飞并悬停
-        steps_per_call = round(self.dt / self.sim_dt)
-        nan = float('NaN')
-        input = (0.0, 0.0, 0.0, 0.4, nan, nan, nan, nan, nan, nan, 0.0, nan)
-        for i in range(100):
-            reply = self.flare.simulate(steps_per_call,  {self.px4: input}, [self.body_info])
-            print(f'Takeoff {i}/100.')
-        #######################################
-
-
         self.log_flag = True    # 是否记录log数据
-
         self.observation_space = convert_observation_to_space(self.reset()[0])
         self.action_space      = gym.spaces.Box(low=-1.0, high=1.0, shape=(3,), dtype=np.float32)  # avoid the open range caused by 'tanh' in SAC algorithm
 
-        
-        
-
+  
 
     
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, state: Optional[State_struct]=None):
@@ -92,15 +72,18 @@ class DroneEnv(gym.Env):
         #######################################
         # 让无人机从空中起飞
         # Start simulation
+        self.flare.start()
         self.flare.reset()
+        self.sim_dt = self.flare.get_time_step()
 
-        # 初始化之后，让无人机起飞并悬停
-        steps_per_call = round(self.dt / self.sim_dt)
-        nan = float('NaN')
-        input = (0.0, 0.0, 0.0, 0.4, nan, nan, nan, nan, nan, nan, 0.0, nan)
-        for i in range(100):
-            reply = self.flare.simulate(steps_per_call,  {self.px4: input}, [self.body_info])
-        print(f'Takeoff {i}/100.')
+        # # 初始化之后，让无人机起飞并悬停
+        # steps_per_call = round(self.dt / self.sim_dt)
+
+        # nan = float('NaN')
+        # input = (0.0, 0.0, 0.0, 0.4, nan, nan, nan, nan, nan, nan, 0.0, nan)
+        # for i in range(100):
+        #     reply = self.flare.simulate(steps_per_call,  {self.px4: input}, [self.body_info])
+        # print(f'Takeoff {i}/100.')
         #######################################
 
         # define initial state
