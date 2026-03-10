@@ -31,7 +31,7 @@ def convert_observation_to_space(observation):
 # Class of uav dynamic linear model 
 ######################################
 class DroneEnv(gym.Env):
-    def __init__(self, localhost: int = 25556):
+    def __init__(self, localhost: int = 25556, duration = 30.0):
         super().__init__()
 
 
@@ -42,7 +42,7 @@ class DroneEnv(gym.Env):
         self.inertial_inv = np.linalg.inv(self.inertial)
 
 
-        self.duration = 30.0     # 仿真时长
+        self.duration = duration     # 仿真时长
         position_frequency = 20.0
         attitude_frequency = 200.0
         self.pos_att_power = round(attitude_frequency / position_frequency)

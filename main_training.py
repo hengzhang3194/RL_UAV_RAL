@@ -15,7 +15,7 @@ import gymnasium as gym
 from envs.sac_agent import SacAgent, ReplayBuffer
 from collections import defaultdict
 from envs.env_flare import DroneEnv as DroneEnv_flare
-from envs.env_model_pos import DroneEnv as DroneEnv_model
+# from envs.env_model import DroneEnv as DroneEnv_model
 from envs.env_nonlinear_model import DroneEnv as DroneEnv_nomodel
 from envs.desired_trajectory import Desired_trajectory
 from envs.controller_att import Controller_Attitude
@@ -25,9 +25,9 @@ import pdb
 
 
 # drone = DroneEnv_flare(localhost=25556)
-drone = DroneEnv_model(localhost=25555)
+drone = DroneEnv_nomodel(localhost=25555)
 desired_trajectory = Desired_trajectory(trajectory_flag='horizon_eight')
-controller_att = Controller_Attitude(controller_flag='px4_att')
+controller_att = Controller_Attitude(controller_flag='NFC_att')
 
 log = defaultdict(list)  # 用于存储信息的字典
 
@@ -105,23 +105,18 @@ while steps <= max_steps:
         cumulative_reward = 0.0
 
         # 仿真姿态环，确保obs是位置环的频率。
-        # while not obs_flag:
-        #     att = next_obs[6:9] + state_des.att
-        #     ang = next_obs[9:12] + state_des.ang
-        #     # scale = np.array([6, 6, 13])    # 13 = 1.32*9.8
-            
-        #     act_att = controller_att.px4_att(act_pos, att, ang, state_des)
-        #     act = np.concatenate([act_pos, act_att], axis=0)
-        #     next_obs, reward, terminated, truncated, info = drone.step(act, state_des)
-        #     obs_flag = info["obs_flag"]
-        #     cumulative_reward += reward
-        
-        next_obs, reward, terminated, truncated, info = drone.step(act_pos, state_des)
-        obs_flag = info["obs_flag"]
-        cumulative_reward += reward
+        while not obs_flag:
+            att = next_obs[6:9] + state_des.att
+            ang = next_obs[9:12] + state_des.ang
+            att_des = state_des.att
+            ang_des = state_des.ang
 
-
-        # save to buffer
+            act_att = controller_att.get_controller(act_pos, att, ang, att_des, ang_des)
+            act = np.concatenate([act_pos, act_att], axis=0)
+            next_obs, reward, terminated, truncated, info = drone.step(act, state_des)
+            obs_flag = info["obs_flag"]
+            cumulative_reward += reward
+                
         reward = cumulative_reward
         buffer.push(obs, action, reward, next_obs, terminated, truncated)      # 将数据存入缓冲区
         obs = next_obs

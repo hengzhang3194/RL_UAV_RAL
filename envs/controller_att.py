@@ -70,13 +70,8 @@ class Controller_Attitude:
             self.temp_ang = np.zeros(3) # 存储当前的3维“姿态速度”，以方便计算“姿态加速度”。
 
 
-    def NFC_att(self, force, att, ang, state_des):
-        # att is system attitude
-        # ang is system attitude rate
-        att_des = state_des.att
-        ang_des = state_des.ang
-        thrust_body, att_des = self.Decomposition1(force, att_des)
-
+    def NFC_att(self, att, ang, att_des, ang_des):
+        '''att is attitude, ang is attitude velocity'''
 
         att_acc_des = (ang_des - self.temp_ang) / self.dt 
         self.temp_ang = ang_des
@@ -96,16 +91,11 @@ class Controller_Attitude:
         max_torque = 1.0
         torque_controller = np.clip(torque_controller, -max_torque, max_torque)
 
-        tau_roll, tau_pitch, tau_yaw = torque_controller
-        action = np.array([thrust_body, tau_roll, tau_pitch, tau_yaw])
-
-        return action
+        return torque_controller
     
-    def px4_att(self, force, att, ang, state_des):
-        att_des = state_des.att
-        ang_des = state_des.ang
-        thrust_body, att_des = self.Decomposition1(force, att_des)
-        
+    def px4_att(self, force, att, ang, att_des, ang_des):
+        '''att is attitude, ang is attitude velocity'''
+
         # 1. 姿态环 (Outer Loop: P Control)
         # 计算欧拉角偏差 (注意：PX4底层实际用四元数，这里用欧拉角简化模拟)
         att_error = att_des - att
@@ -132,12 +122,8 @@ class Controller_Attitude:
         # Control constrain
         max_torque = 1.0
         torque_controller = np.clip(torque_controller, -max_torque, max_torque)
-
-        tau_roll, tau_pitch, tau_yaw = torque_controller
-        action = np.array([thrust_body, tau_roll, tau_pitch, tau_yaw])
         
-        
-        return action
+        return torque_controller
     
 
     def Decomposition1(self, force, att_des):
@@ -157,10 +143,38 @@ class Controller_Attitude:
         roll_num = ddx * np.cos(yaw_des) + ddy * np.sin(yaw_des)
         roll_des = np.arctan(roll_den / roll_num) if roll_num != 0 else 0
 
+        # 将解耦得到的姿态和期望姿态叠加
         att_decom = np.array([roll_des, pitch_des, yaw_des])
         att_des = np.clip(att_decom + att_des, -self.MAX_ATT, self.MAX_ATT)
         
         return thrust_body, att_des
+    
+
+    ###########################################
+    # Select controller by self.controller_flag
+    ###########################################
+    def get_controller(self, force, att, ang, att_des, ang_des):
+        '''
+        和上面self.controller_flag的名称一样，调用相关的控制器
+        # att is system attitude
+        # ang is system attitude rate
+        '''
+
+        thrust_body, att_des = self.Decomposition1(force, att_des)
+
+        if self.controller_flag == 'NFC_att':
+            torque_controller = self.NFC_att(att, ang, att_des, ang_des)
+        elif self.controller_flag == 'px4_att':
+            torque_controller = self.NFC_att(att, ang, att_des, ang_des)
+        
+        else:
+            raise ValueError(
+                f"无效的控制器标识: {self.controller_flag}!") 
+        
+        tau_roll, tau_pitch, tau_yaw = torque_controller
+        action = np.array([thrust_body, tau_roll, tau_pitch, tau_yaw])
+
+        return action
 
 
     

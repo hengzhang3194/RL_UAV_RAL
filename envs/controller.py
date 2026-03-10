@@ -25,7 +25,6 @@ class Controller:
         self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
         self.dt = 1 / 200
         
-        
 
         self.DEG2RAD = math.pi / 180  # 0.01745
         self.RAD2DEG = 180 / math.pi     # 57.2958
@@ -35,17 +34,13 @@ class Controller:
         self.MAX_ACC = 9.8 * 1.0
 
 
-        self.att_decom = np.zeros(3)    # 解耦之后的期望姿态
-        self.temp_ang = np.zeros(3) # 存储当前的3维“姿态速度”，以方便计算“姿态加速度”。
-
-
         self.force_controller = np.zeros(3)  # 控制器的位置环输出，惯性坐标系下XYZ方向的推力
         self.thrust = 0.0     # 机体坐标系下的Z-axis推力
         self.throttle = 0.0     # throttle command （0-1）
         self.torque_controller = np.zeros(3)  # 控制器的姿态环输出力矩
 
 
-        # 获取所选控制器的参数
+        # 选择姿态环控制器，并获取所选控制器的参数
         self.controller_flag = controller_flag
         self.controller_att = Controller_Attitude(controller_flag='NFC_att')
         self.get_controller_parameters()
@@ -121,18 +116,7 @@ class Controller:
             # self.theta = data_gain['theta'][-1].reshape(6, 3)
 
 
-        elif self.controller_flag == 'RL_full_model':
-            # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 12
-            act_dims = 4
-            hidden_size=[256, 256]
-            pi_model_path = 'tensorboard/Drone_model/SAC/20251223_230017_full_model/ckpts/latest/pi.pth'
-            assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
-
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
-            self.pi_net.load_state_dict(torch.load(pi_model_path))
-            self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
+        
 
         elif self.controller_flag in ['RL_model', 'RL_flare']:
             # 位置环 RL，姿态环采取非线性反馈控制
@@ -142,9 +126,23 @@ class Controller:
 
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260110_231901/ckpts/10800/pi.pth' 
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260210_222529/ckpts/5000/pi.pth' # 5000, 8600
-            # pi_model_path = 'tensorboard/Drone_model/SAC/20260210_222529/ckpts/8600/pi.pth' # 5000, 8600
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/latest/pi.pth'
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260310_123730/ckpts/latest/pi.pth'
 
+
+            assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
+
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
+            self.pi_net.load_state_dict(torch.load(pi_model_path))
+            self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
+
+        elif self.controller_flag == 'RL_nomodel':
+            # 位置环 RL，姿态环采取非线性反馈控制
+            obs_dims = 15
+            act_dims = 3
+            hidden_size=[256, 256]
+
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260310_123730/ckpts/latest/pi.pth'
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -168,9 +166,22 @@ class Controller:
             self.pi_net.load_state_dict(torch.load(pi_model_path))
             self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
 
-        elif self.controller_flag == 'RL_gazebo':
+        elif self.controller_flag == 'RL_full_model':
             # 位置环 RL，姿态环采取非线性反馈控制
             obs_dims = 12
+            act_dims = 4
+            hidden_size=[256, 256]
+            pi_model_path = 'tensorboard/Drone_model/SAC/20251223_230017_full_model/ckpts/latest/pi.pth'
+            assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
+
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
+            self.pi_net.load_state_dict(torch.load(pi_model_path))
+            self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
+
+        elif self.controller_flag == 'RL_gazebo':
+            # 位置环 RL，姿态环采取非线性反馈控制
+            obs_dims = 15
             act_dims = 3
             hidden_size=[256, 256]
 
@@ -703,11 +714,11 @@ class Controller:
         
 
     #####################################
-    # RL for Model & Flare
+    # RL for Model (pos: linear, att: nonlinear)
     #####################################
     def RL_model(self, obs_flag, state_des):
         if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error, self.att))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             std = log_std.exp()
@@ -723,7 +734,11 @@ class Controller:
         action_pos = self.force_controller + self.G - 3.0 * self.pos - 3.0 * self.vel
 
         # 计算姿态环控制器
-        action_att = self.controller_att.NFC_att(action_pos, self.att, self.ang, state_des)
+        att_des = state_des.att
+        ang_des = state_des.ang
+        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, att_des, ang_des)
+
+
         action = np.concatenate([action_pos, action_att], axis=0)
 
         return action
@@ -759,7 +774,7 @@ class Controller:
     # RL for Gazebo
     #####################################
     def RL_gazebo(self, obs_flag, state_des):
-        obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+        obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error, self.att))
         obs_tensor = torch.FloatTensor(obs).to(self.device)
         mean, log_std = self.pi_net(obs_tensor)
         std = log_std.exp()
@@ -767,17 +782,46 @@ class Controller:
         action = torch.tanh(mean).detach().cpu().numpy()
             
         # RL controller 处理
+        action[2] += 1.0
         force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
         self.force_controller = action * force_scale
 
-        self.G = self.mass * np.array([0, 0, self.g])
-        action_pos = self.force_controller + self.G
+        action_pos = self.force_controller
 
         # 计算姿态环控制器
         thrust_body, att_des = self.controller_att.Decomposition1(action_pos, state_des.att)
 
         # 返回值是：机身推力 + 3维期望姿态
         action = np.array([thrust_body, att_des[0], att_des[1], att_des[2]])
+
+        return action
+    
+    #####################################
+    # RL for 12-D nonlinear model
+    #####################################
+    def RL_nomodel(self, obs_flag, state_des):
+        if obs_flag:
+            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error, self.att))
+            obs_tensor = torch.FloatTensor(obs).to(self.device)
+            mean, log_std = self.pi_net(obs_tensor)
+            std = log_std.exp()
+            
+            action = torch.tanh(mean).detach().cpu().numpy()
+                
+            # RL controller 处理
+            action[2] += 1.0
+            force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
+            self.force_controller = action * force_scale 
+
+        action_pos = self.force_controller
+
+        # 计算姿态环控制器
+        att_des = state_des.att
+        ang_des = state_des.ang
+        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, att_des, ang_des)
+
+
+        action = np.concatenate([action_pos, action_att], axis=0)
 
         return action
     
@@ -1106,6 +1150,8 @@ class Controller:
             action = self.RL_model(obs_flag, state_des)
         elif self.controller_flag == 'RL_flare':
             action = self.RL_flare(obs_flag, state_des)
+        elif self.controller_flag == 'RL_nomodel':
+            action = self.RL_nomodel(obs_flag, state_des)
         elif self.controller_flag == 'RL_corl':
             action = self.RL_corl(obs_flag, state_des)
         elif self.controller_flag == 'RL_gazebo':

@@ -10,21 +10,37 @@ import time
 import pdb
 
 from collections import defaultdict
-# from envs.env_gazebo import DroneEnv as DroneEnv_gazebo
-from envs.env_flare import DroneEnv as DroneEnv_flare
+
+try:
+    from envs.env_gazebo import DroneEnv as DroneEnv_gazebo
+except (ImportError, ModuleNotFoundError):
+    DroneEnv_gazebo = None  # 导入失败则设为空
+
+try:
+    from envs.env_flare import DroneEnv as DroneEnv_flare
+except (ImportError, ModuleNotFoundError):
+    DroneEnv_flare = None  # 导入失败则设为空
+
 from envs.env_model import DroneEnv as DroneEnv_model
 from envs.env_nonlinear_model import DroneEnv as DroneEnv_nomodel
 from envs.desired_trajectory import Desired_trajectory
 from envs.controller import Controller
 # from envs.env_gazebo import DroneEnv
 
-# 选择控制算法，以及应用平台
-platform = 'model'  # 可选: 'model', 'flare', 'gazebo', 'real'
-base_name = 'RL'    # 可选: 'NFC', 'PID', 'RL'
+env_name = {
+    'model':  DroneEnv_model,
+    'nomodel':  DroneEnv_nomodel,
+    'flare':  DroneEnv_flare,
+    'gazebo': DroneEnv_gazebo
+}
 
-drone = DroneEnv_model()
+# 选择控制算法，以及应用平台
+platform = 'nomodel'  # 可选: 'model', 'nomodel', 'flare', 'gazebo', 'real'
+control_name = 'RL'    # 可选: 'NFC', 'PID', 'RL'
+
+drone = env_name.get(platform)(duration=50) # 仿真时间
 controller1 = Controller(controller_flag='NFC')
-controller2 = Controller(controller_flag=f"{base_name}_{platform}" )
+controller2 = Controller(controller_flag=f"{control_name}_{platform}" )
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag='horizon_eight')
 # Candidate: smooth_curve, horizon_eight, waypoint, horizon_circle, *bezier, spiral

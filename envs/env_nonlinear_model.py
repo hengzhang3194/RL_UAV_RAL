@@ -31,7 +31,7 @@ def convert_observation_to_space(observation):
 # Class of uav dynamic nonlinear model
 ######################################
 class DroneEnv(gym.Env):
-    def __init__(self, localhost: int = 25556):
+    def __init__(self, localhost: int = 25556, duration = 30.0):
         super().__init__()
 
 
@@ -41,7 +41,7 @@ class DroneEnv(gym.Env):
         self.inertial = np.diag([0.003686, 0.003686, 0.006824])
         self.inertial_inv = np.linalg.inv(self.inertial)
 
-        self.duration = 20.0     # 仿真时长
+        self.duration = duration     # 仿真时长
         position_frequency = 20.0
         attitude_frequency = 200.0
         self.pos_att_power = round(attitude_frequency / position_frequency)
@@ -49,7 +49,6 @@ class DroneEnv(gym.Env):
         hovering_throttle = 0.4     # 悬停油门
         self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
         self.actuator_tau = 0.02 # 电机时间常数 [s]
-        self.action_last = np.zeros(4)
 
         # 设置状态约束边界
         self.DEG2RAD = math.pi / 180        # 0.017453292519943295
@@ -86,7 +85,6 @@ class DroneEnv(gym.Env):
         self.sim_time = 0.0     # flare仿真器上一次的时间
         self.seq = 0
 
-        self.actual_action = np.zeros(4)
         
         self.obs = State_struct()
         self.obs_last = State_struct()
@@ -101,19 +99,18 @@ class DroneEnv(gym.Env):
 
 
 
-    def reward(self, obs, action, last_action):
-        yawcost = -0.5 * np.abs(obs.att[2])
-        poscost = 10 / (np.linalg.norm(obs.pos) + 1)
+    def reward(self, obs, last_action, current_action):
+        action_diff = np.linalg.norm(current_action - last_action)
+        smooth_cost = 2.0 * action_diff 
+
+        # 3. 动作幅值惩罚 (Control Effort)
+        effort_cost = 0.1 * np.linalg.norm(current_action)
+
+        poscost = 20 / (np.linalg.norm(obs.pos) + 1)
         velcost = 1 / (np.linalg.norm(obs.vel) + 1)
+        z_cost = 5 * np.exp(-np.abs(obs.pos[2]))
 
-        # 惩罚当前动作与上一个动作的差异，迫使控制逻辑变得平滑
-        action_diff = np.linalg.norm(action - last_action)
-        action_smoothness_cost = -0.5 * action_diff  # 系数 0.5 可根据震荡剧烈程度调整
-        
-        # 惩罚过大的力输出，避免系统总是在极限边缘运行
-        action_mag_cost = -0.1 * np.linalg.norm(action)
-
-        cost = yawcost + poscost + velcost + action_smoothness_cost + action_mag_cost
+        cost = poscost + velcost + z_cost - smooth_cost - effort_cost
 
         return cost
 
@@ -124,21 +121,24 @@ class DroneEnv(gym.Env):
         self.seq += 1
 
 
-        self.throttle = action[0] * self.POTT
-        self.tau_roll = action[1]
-        self.tau_pitch = action[2]
-        self.tau_yaw = action[3]
-
         # 考虑控制器时延
+        if not hasattr(self, 'actual_action'):
+            self.actual_action = np.zeros(7)
         alpha = min(self.dt / self.actuator_tau, 1.0)
         self.actual_action = self.actual_action + alpha * (action - self.actual_action)
         action = self.actual_action
+
+        action_pos = action[0:3]
+        self.throttle = action[3] * self.POTT
+        self.tau_roll = action[4]
+        self.tau_pitch = action[5]
+        self.tau_yaw = action[6]
 
         
 
         # force
         state = np.concatenate([self.state.pos, self.state.vel, self.state.att, self.state.ang], axis=0)
-        next_state = self._integrate_dynamics(state, action)
+        next_state = self._integrate_dynamics(state, action[3:])
 
         (self.state.pos, self.state.vel, self.state.att, self.state.ang) = next_state.reshape(4, 3)
 
@@ -162,8 +162,10 @@ class DroneEnv(gym.Env):
                                       self.state.att], axis=0)
 
 
-        reward = self.reward(self.obs, action, self.action_last)
-        self.action_last = action
+        if not hasattr(self, 'action_last'):
+            self.action_last = np.zeros(3)
+        reward = self.reward(self.obs, self.action_last, action_pos)
+        self.action_last = action_pos
 
         # conditions of termination
         terminated = False  # only current reward
