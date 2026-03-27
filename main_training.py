@@ -15,8 +15,8 @@ import gymnasium as gym
 from envs.sac_agent import SacAgent, ReplayBuffer
 from collections import defaultdict
 from envs.env_flare import DroneEnv as DroneEnv_flare
-# from envs.env_model import DroneEnv as DroneEnv_model
-from envs.env_nonlinear_model import DroneEnv as DroneEnv_nomodel
+from envs.env_model import DroneEnv as DroneEnv_model
+# from envs.env_nonlinear_model import DroneEnv as DroneEnv_nomodel
 from envs.desired_trajectory import Desired_trajectory
 from envs.controller_att import Controller_Attitude
 
@@ -25,7 +25,7 @@ import pdb
 
 
 # drone = DroneEnv_flare(localhost=25556)
-drone = DroneEnv_nomodel(localhost=25555)
+drone = DroneEnv_model(localhost=25555)
 desired_trajectory = Desired_trajectory(trajectory_flag='horizon_eight')
 controller_att = Controller_Attitude(controller_flag='NFC_att')
 
@@ -45,7 +45,7 @@ a_lr = 3e-4
 max_steps = 6e6
 buffer_size = 1e6
 batch_size = 256
-model_save_interval = 10
+model_save_interval = 100
 average_range = 50
 return_threshold = np.inf
 
@@ -94,12 +94,12 @@ while steps <= max_steps:
         next_obs = obs
 
         act_pos = np.zeros(3)
-        act_pos[0] = action[0] * 0.5 * drone.mass * drone.g
-        act_pos[1] = action[1] * 0.5 * drone.mass * drone.g
+        act_pos[0] = action[0] * 0.3 * drone.mass * drone.g
+        act_pos[1] = action[1] * 0.3 * drone.mass * drone.g
         act_pos[2] = (action[2] + 1) * drone.mass * drone.g
-        # pos = next_obs[0:3] + state_des.pos
-        # vel = next_obs[3:6] + state_des.vel
-        # act_pos = act_pos - 3.0 * pos - 3.0 * vel
+        pos = next_obs[0:3] + state_des.pos
+        vel = next_obs[3:6] + state_des.vel
+        act_pos = act_pos - 3.0 * pos - 3.0 * vel
 
         # --- 初始化累加变量 ---
         cumulative_reward = 0.0

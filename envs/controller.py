@@ -245,18 +245,93 @@ class Controller:
             # 位置环采取MRAC，姿态环采取非线性反馈控制
             self.kx = np.zeros((3, 6))
             self.kr = np.zeros((3, 3))
-            self.theta = np.zeros((6, 3))  
-            # self.gamma_x = 0.003 * np.eye(6)
-            # self.gamma_r = 0.0003 * np.eye(3)
-            # self.gamma_theta = 0.003 * np.eye(6)
-            # self.Q = -1500 * np.eye(6)  # Q 必须是对称的
-            # self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
+            self.theta = np.zeros((10, 3))  
 
             self.gamma_x = 0.003 * np.eye(6)
             self.gamma_r = 0.003 * np.eye(3)
+            self.gamma_theta = 0.003 * np.eye(10)
+            self.Q = -900 * np.eye(6)  # Q 必须是对称的
+            self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
+
+            ############ 从文件中读取控制器参数的初值
+            # data_gain = np.load('Data/RL_MRAC_flare_01.npz')
+            # self.kx = data_gain['kx'][-1].reshape(3, 6)
+            # self.kr = data_gain['kr'][-1].reshape(3, 3)
+            # self.theta = data_gain['theta'][-1].reshape(12, 3)
+
+            # load RL data
+            RL_data = pd.read_csv('Data/RL_data.csv')
+            self.pos_ref_all = RL_data[['pos_xd', 'pos_yd', 'pos_zd']].to_numpy()
+            self.vel_ref_all = RL_data[['vel_xd', 'vel_yd', 'vel_zd']].to_numpy()
+            self.ref_input_all = RL_data[['force_x', 'force_y', 'force_z']].to_numpy()
+            self.pos_ref = np.zeros(3)
+            self.vel_ref = np.zeros(3)
+
+        elif self.controller_flag == 'RL_MRAC_landing_flare':
+            # system matrix of reference model
+            self.Am_k = 3.0
+            self.B = np.block([[np.zeros((3, 3))], 
+                               [np.eye(3) / self.mass]])
+            self.Am = np.block([[np.zeros((3, 3)), np.eye(3)], 
+                                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]
+                ])
+            
+            # 位置环采取MRAC，姿态环采取非线性反馈控制
+            self.kx = np.zeros((3, 6))
+            self.kr = np.zeros((3, 3))
+            self.theta = np.zeros((6, 3))  
+
+            self.gamma_x = 0.003 * np.eye(6)
+            self.gamma_r = 0.003 * np.eye(3)
+            self.gamma_theta = 0.03 * np.eye(6)
+            self.Q = -900 * np.eye(6)  # Q 必须是对称的
+            self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
+
+            # GEF 预测
+            self.f_gef_estimate = 0.0
+            # self.theta_gef = np.array([2.405, -1.928, 5.793, -0.561, -0.596, 1.512])
+            self.theta_gef = np.zeros((6)) 
+
+            ############ 从文件中读取控制器参数的初值
+            # data_gain = np.load('Data/test.npz')
+            # self.kx = data_gain['kx'][-1].reshape(3, 6)
+            # self.kr = data_gain['kr'][-1].reshape(3, 3)
+            # self.theta = data_gain['theta'][-1].reshape(7, 3)
+
+            # load RL data
+            RL_data = pd.read_csv('Data/RL_data.csv')
+            self.pos_ref_all = RL_data[['pos_xd', 'pos_yd', 'pos_zd']].to_numpy()
+            self.vel_ref_all = RL_data[['vel_xd', 'vel_yd', 'vel_zd']].to_numpy()
+            self.ref_input_all = RL_data[['force_x', 'force_y', 'force_z']].to_numpy()
+            self.pos_ref = np.zeros(3)
+            self.vel_ref = np.zeros(3)
+
+        elif self.controller_flag == 'RL_MRAC_gazebo':
+            # system matrix of reference model
+            self.Am_k = 3.0
+            self.B = np.block([
+                [np.zeros((3, 3))],   # 第一行
+                [np.eye(3) / self.mass]  # 第二行
+                ])
+            self.Am = np.block([
+                [np.zeros((3, 3)), np.eye(3)],   # 第一行
+                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]  # 第二行
+                ])
+            
+            # 位置环采取MRAC，姿态环采取非线性反馈控制
+            self.kx = np.zeros((3, 6))     
+            self.kr = np.zeros((3, 3))
+            self.theta = np.zeros((6, 3))  
+            self.gamma_x = 0.003 * np.eye(6)
+            self.gamma_r = 0.0003 * np.eye(3)
             self.gamma_theta = 0.003 * np.eye(6)
             self.Q = -900 * np.eye(6)  # Q 必须是对称的
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
+
+            # GEF 预测
+            self.f_gef_estimate = 0.0
+            # self.theta_gef = np.array([2.405, -1.928, 5.793, -0.561, -0.596, 1.512])
+            self.theta_gef = np.zeros((6)) 
 
             ############ 从文件中读取控制器参数的初值
             # data_gain = np.load('Data/RL_MRAC_flare.npz')
@@ -272,7 +347,7 @@ class Controller:
             self.pos_ref = np.zeros(3)
             self.vel_ref = np.zeros(3)
 
-        elif self.controller_flag == 'RL_MRAC_gazebo':
+        elif self.controller_flag == 'RL_MRAC_landing_gazebo':
             # system matrix of reference model
             self.Am_k = 3.0
             self.B = np.block([
@@ -350,77 +425,6 @@ class Controller:
             self.P = solve_continuous_lyapunov(self.Am.T, self.Q)
 
 
-        elif self.controller_flag == 'NFC_regressor1':
-            # self.theta_hat = np.array([
-            #     4.501,      # GEFz*throttle*exp(-floor_dis)
-            #     -4.390,     # GEFz*pos_z*exp(-floor_dis)
-            #     -1.625,     # GEFz^2*pos_z*exp(-floor_dis)
-            #     -1500.061,  # throttle*Eh*exp(-floor_dis)
-            #     -4.512,     # GEFz^2*Eh*exp(-floor_dis)
-            #     3236.996,   # throttle^2*Eh*exp(-floor_dis)
-            #     -3.669,     # GEFz*throttle
-            #     3.367,      # GEFz*pos_z
-            #     1.391,      # GEFz^2*pos_z
-            #     1382.492,   # throttle*Eh
-            #     4.465,      # GEFz^2*Eh
-            #     -2923.586,  # throttle^2*Eh
-            #     7.647,      # Eh*velocity_x
-            #     -0.445,     # velocity_x*exp(-floor_dis)
-            #     -0.252      # pitch*exp(-floor_dis)
-            # ])
-            self.theta_hat = np.zeros(15)
-
-            # data_gain = np.load('Data/controller_gains.npz')
-            # self.theta_hat = data_gain['theta_hat']
-
-
-            self.f_hat = 0.0          # Current disturbance estimate
-            self.f_hat_prev = 0.0      # Previous disturbance estimate
-            self.f_actual = 0.0        # Actual disturbance
-            self.f_actual_smooth = 0.0
-            self.f_actual_prev = 0.0   # Previous actual disturbance
-            self.gamma = 2.0        # Adaptive gain
-            # self.gamma = np.diag([2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 5.0, 5.0, 5.0])  # 对新项给予更高学习率
-            self.lambda_ = -2.0        # Error feedback gain
-            
-            self.V = 0.0  # 前向速度（m/s）
-            self.V_tip = 120.0  # 叶尖速度估计值（m/s），需根据实际无人机参数调整
-            self.V_c = 0.15 * self.V_tip  # 临界速度（Cheeseman建议值）
-            
-            # Previous states for adaptive observer
-            self.prev_throttle = 0.0
-            self.prev_pos_z = 0.0
-            self.prev_Eh = 0.0
-
-            self.temp_acc = np.zeros(3)   
-            self.temp_ang = np.zeros(3)
-            
-            self.ekf_Q = np.diag([0.002, 0.002])  # 过程噪声协方差
-            self.ekf_R = 0.1  # 观测噪声协方差
-            self.ekf_P = np.diag([1.0, 1.0])  # 状态估计误差协方差
-            self.ekf_x = np.array([0.0, 0.0])  # 状态向量 [f_actual, f_dot]
-            
-            # 姿态控制器参数 for self.att_vontroller()
-            self.s_pos = np.zeros(3)       # auxiliary variable
-            self.sum_s_pos = np.zeros(3)
-            self.Gamma_pos = 5
-            self.K_pos = np.array([2, 2, 10]) * 0.5
-            self.Ki_pos = np.array([5, 5, 5]) * 0.2
-
-
-            # 姿态环 参数
-            self.s_att = np.zeros(3)       # auxiliary variable
-            self.sum_s_att = np.zeros(3)
-            self.sum_att_error = np.zeros(3)
-            self.Gamma_att = 3
-            self.KP_ATT = np.array([5, 5, 5]) * 0.4
-            self.KD_ATT = np.array([2, 2, 2]) * 0.2
-            self.KI_ATT = np.array([1, 1, 1]) * 0.2
-
-
-
-    
-
 
     #####################################
     # NFC for model
@@ -440,7 +444,7 @@ class Controller:
             self.vel_ref = self.vel_des - self.Gamma_pos * self.pos_error
             self.acc_ref = self.acc_des - self.Gamma_pos * self.vel_error
 
-            thrust = np.dot(self.M, self.acc_ref) + self.G - self.K_pos * self.s_pos - self.Ki_pos * self.sum_s_pos + 3*self.mass * self.pos + 3*self.mass * self.vel
+            thrust = np.dot(self.M, self.acc_ref) + self.G - self.K_pos * self.s_pos - self.Ki_pos * self.sum_s_pos - 3*self.mass * self.pos - 3*self.mass * self.vel
 
             # Control constrain
             thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
@@ -453,7 +457,7 @@ class Controller:
         action_pos = self.force_controller
 
         # 计算姿态环控制器
-        action_att = self.controller_att.NFC_att(action_pos, self.att, self.ang, state_des)
+        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att, self.ang)
         action = np.concatenate([action_pos, action_att], axis=0)
 
         return action
@@ -490,7 +494,7 @@ class Controller:
         action = self.force_controller
 
         # 计算姿态环控制器
-        action = self.controller_att.NFC_att(action, self.att, self.ang, state_des)
+        action = self.controller_att.get_controller(action, self.att, self.ang, self.att_des, self.ang_des)
 
         return action
     
@@ -544,7 +548,26 @@ class Controller:
             error = np.hstack((self.pos_error, self.vel_error)).reshape(-1,1)
             state = np.hstack((self.pos, self.vel)).reshape(-1,1)
             ref_input = self.ref_input.reshape(-1,1)
-            phi = np.hstack((self.pos, self.vel)).reshape(-1,1)
+            # phi = np.hstack((self.pos, self.vel)).reshape(-1,1)
+            # phi = np.hstack((self.pos, self.vel, self.att, self.ang)).reshape(-1,1)
+
+            
+            # phi_m = self.acc_des    # 质量项 (惯性 + 重力)
+            # phi_d_linear = self.vel     # 阻尼项 v, v*|v|
+            # phi_d_quad =  self.vel * abs(self.vel)
+            # phi_bias = 1.0    # 常值偏置项 (外力干扰)
+
+            # # 水平拼接成 3x10 矩阵
+            # phi = np.hstack([phi_m, phi_d_linear, phi_d_quad, phi_bias]).reshape(-1,1)
+
+            Eh = self.calculate_Eh(self.pos[2])
+            term1 = self.f_gef_estimate * self.throttle
+            term2 = self.f_gef_estimate * self.pos[2]
+            term3 = self.throttle * Eh
+            term4 = (self.f_gef_estimate**2) * self.pos[2]
+            term5 = (self.f_gef_estimate**2) * Eh
+            term6 = (self.throttle**2) * Eh
+            phi = np.array([term1, term2, term3, term4, term5, term6]).reshape(-1,1)
 
             kx_update = self.gamma_x @ state @ error.T @ self.P @ self.B
             kr_update = self.gamma_r @ ref_input @ error.T @ self.P @ self.B
@@ -558,23 +581,27 @@ class Controller:
             self.kx = self.kx + (kx_update.T) * self.dt * 10
             self.kr = self.kr + (kr_update.T) * self.dt * 10
             self.theta = self.theta + (theta_update) * self.dt * 10
-            self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
+            # self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
 
-            thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
+            theta_term = self.theta.T @ phi + self.f_gef_estimate
+            self.G = np.array([0, 0, self.mass * self.g - theta_term[2][0]]).reshape(-1, 1)
+
+            # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
             # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G
+
+            thrust = self.kx @ state + self.kr @ ref_input + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
 
             # Control constrain
             thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
             thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
             thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
             
-
             self.force_controller = thrust.flatten()
 
         action = self.force_controller
 
         # 计算姿态环控制器
-        action = self.controller_att.NFC_att(action, self.att, self.ang, state_des)
+        action = self.controller_att.get_controller(action, self.att, self.ang, self.att_des, self.ang_des)
 
         return action
     
@@ -588,7 +615,18 @@ class Controller:
         error = np.hstack((self.pos_error, self.vel_error)).reshape(-1,1)
         state = np.hstack((self.pos, self.vel)).reshape(-1,1)
         ref_input = self.ref_input.reshape(-1,1)
-        phi = np.hstack((self.pos, self.vel)).reshape(-1,1)
+        # phi = np.hstack((self.pos, self.vel)).reshape(-1,1)
+
+        Eh = self.calculate_Eh(self.pos[2])
+        term1 = self.f_gef_estimate * self.throttle
+        term2 = self.f_gef_estimate * self.pos[2]
+        term3 = self.throttle * Eh
+        term4 = (self.f_gef_estimate**2) * self.pos[2]
+        term5 = (self.f_gef_estimate**2) * Eh
+        term6 = (self.throttle**2) * Eh
+        phi = np.array([term1, term2, term3, term4, term5, term6]).reshape(-1,1)
+        
+
 
         kx_update = self.gamma_x @ state @ error.T @ self.P @ self.B
         kr_update = self.gamma_r @ ref_input @ error.T @ self.P @ self.B
@@ -596,10 +634,15 @@ class Controller:
         self.kx = self.kx + kx_update.T * self.dt * 10
         self.kr = self.kr + kr_update.T * self.dt * 10
         self.theta = self.theta + theta_update * self.dt * 10
-        self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
+        # self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
 
-        thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G  - self.Am_k * state[0:3] - self.Am_k * state[3:6]
+        theta_term = self.theta.T @ phi + self.f_gef_estimate
+        self.G = np.array([0, 0, self.mass * self.g - theta_term[2][0]]).reshape(-1, 1)
+
+        # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G  - self.Am_k * state[0:3] - self.Am_k * state[3:6]
         # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G
+
+        thrust = self.kx @ state + self.kr @ ref_input + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
 
         
         # Control constrain
@@ -723,16 +766,13 @@ class Controller:
             action = torch.tanh(mean).detach().cpu().numpy()
                 
             # RL controller 处理
-            action[2] += 1.0
             force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
-            self.force_controller = action * force_scale 
+            self.force_controller = action * force_scale
 
-        action_pos = self.force_controller - 3.0 * self.pos - 3.0 * self.vel
+        action_pos = self.force_controller + self.mass * np.array([0, 0, self.g]) - 3.0 * self.pos - 3.0 * self.vel
 
         # 计算姿态环控制器
-        att_des = state_des.att
-        ang_des = state_des.ang
-        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, att_des, ang_des)
+        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
 
 
         action = np.concatenate([action_pos, action_att], axis=0)
@@ -935,146 +975,10 @@ class Controller:
 
             self.force_controller = thrust.flatten()
 
-    def NFC_regressor(self, obs_flag, state_des):   
-        # Always calculate actual disturbance (f_actual)
-        self.f_actual = self.mass * self.acc[2] + self.mass * self.g - self.force_controller[2]
-        self.f_actual_smooth = self.update_ekf(self.f_actual)
-
-
-        xi_prev = self.calculate_library_terms_prev()
-        f_tilde = self.f_hat_prev - self.f_actual_prev
-        f_dot_hat = np.dot(xi_prev.T, self.theta_hat) + self.lambda_ * f_tilde
-        self.f_hat = self.f_hat_prev + f_dot_hat * self.dt * 1
-        
-        # Update adaptive parameters
-        theta_dot = -self.gamma * f_tilde * xi_prev
-        self.theta_hat += theta_dot * self.dt * 1
-        
-        # Rest of the controller code remains the same...
-        if obs_flag:
-            
-            ### Translation control
-            self.pos_error = self.pos - self.pos_des
-            self.vel_error = self.vel - self.vel_des
-
-            self.s_pos = self.vel_error + self.Gamma_pos * self.pos_error
-            self.sum_s_pos = self.sum_s_pos + self.s_pos * self.dt * 10 # 将采样时间从姿态环变成位置环
-
-            self.M = self.mass * np.eye(3)
-            self.G = self.mass * np.array([0, 0, self.g])
-            
-            self.vel_ref = self.vel_des - self.Gamma_pos * self.pos_error
-            self.acc_ref = self.acc_des - self.Gamma_pos * self.vel_error
-
-            
-            thrust = np.dot(self.M, self.acc_ref) + self.G - self.K_pos * self.s_pos - self.Ki_pos * self.sum_s_pos - 1.0 * np.array([0, 0, self.f_hat])
-
-            # Control constrain
-            thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
-
-            # pdb.set_trace()
-            self.force_controller = thrust
-
-        # Save states for next time step
-        self.prev_pos_z = self.pos[2]
-        self.f_hat_prev = self.f_hat
-        self.f_actual_prev = self.f_actual_smooth
-        self.prev_Eh = self.empirical_gef_coe_Sanchez_Cuevas(0.19, self.prev_pos_z, 0.42, 0.6)
-
-        action = self.force_controller
-
-        # 计算姿态环控制器
-        action = self.controller_att.NFC_att(action, self.att, self.ang, state_des)
-        self.throttle = action[0] * self.POTT
-        self.prev_throttle = self.throttle
-
-        return action
-        
         
         
 
 
-    def calculate_library_terms_prev(self):
-        
-        # 计算极角（弧度，范围(-π, π]）
-        object_center = self.pos[0:2]
-        theta_rad = np.arctan2(object_center[1], object_center[0])
-        
-        # 转换为[0, 2π)范围，并转化为degree
-        theta_degree = theta_rad % (2 * np.pi) * self.RAD2DEG
-
-        # 判断pos_obs属于第几个障碍物区域(实际上26°差不多，取30.)
-        if theta_degree >= 90 and theta_degree < 210:
-            floor_center = np.array([-1.5, 0.0])
-        elif theta_degree >= 210 and theta_degree < 330:
-            floor_center = np.array([0.75, -1.3])
-        else:
-            floor_center = np.array([0.75, 1.3])
-
-        # 不考虑距离1以内，当作是圆形内部
-        floor_dis = np.linalg.norm(object_center - floor_center) - 1.0
-
-        floor_dis = max(floor_dis, 0)
-        # 9.75 19 36 64
-        
-        return np.array([
-            self.f_hat_prev * self.prev_throttle * np.exp(-floor_dis),
-            self.f_hat_prev * self.prev_pos_z * np.exp(-floor_dis),
-            (self.f_hat_prev**2) * self.prev_pos_z * np.exp(-floor_dis),
-            self.prev_throttle * self.prev_Eh * np.exp(-floor_dis),
-            (self.f_hat_prev**2) * self.prev_Eh * np.exp(-floor_dis),
-            (self.prev_throttle**2) * self.prev_Eh * np.exp(-floor_dis),
-            self.f_hat_prev * self.prev_throttle,  # velocity_x
-            self.f_hat_prev * self.prev_pos_z,     # velocity_x
-            (self.f_hat_prev**2) * self.prev_pos_z,
-            self.prev_throttle * self.prev_Eh,
-            (self.f_hat_prev**2) * self.prev_Eh,
-            (self.prev_throttle**2) * self.prev_Eh,
-            self.prev_Eh * self.vel[0],
-            self.vel[0] * np.exp(-floor_dis),
-            self.att[1] * np.exp(-floor_dis),
-        ])
-    
-    def empirical_gef_coe_Sanchez_Cuevas(self, R, z, d, b):
-        """计算 Sanchez-Cuevas 系数 E_h"""
-        Kb = 0.5
-        term1 = 1 - (R / (4 * z)) ** 2 - R ** 2 * (z / np.sqrt((d ** 2 + 4 * z ** 2) ** 3))
-        term2 = (R ** 2 / 2) * (z / np.sqrt((2 * d ** 2 + 4 * z ** 2) ** 3))
-        term3 = 2 * R ** 2 * (z / np.sqrt((b ** 2 + 4 * z ** 2) ** 3)) * Kb
-        return np.round((np.power(term1 - term2 - term3, -1) - 1), 3)
-    
-    
-
-
-    def update_ekf(self, z_measurement):
-        """
-        EKF更新步骤
-        z_measurement: 观测值 (f_actual)
-        """
-        # 预测步骤
-        # 状态转移矩阵
-        F = np.array([[1, self.dt * 10],
-                    [0, 1]])
-        
-        # 预测状态
-        self.ekf_x = F @ self.ekf_x
-        
-        # 预测协方差
-        self.ekf_P = F @ self.ekf_P @ F.T + self.ekf_Q
-        
-        # 更新步骤
-        H = np.array([1, 0])  # 观测矩阵
-        y = z_measurement - H @ self.ekf_x  # 残差 y=vk
-        S = H @ self.ekf_P @ H.T + self.ekf_R  # 残差协方差
-        K = self.ekf_P @ H.T / S  # 卡尔曼增益
-        
-        # 更新状态和协方差
-        self.ekf_x = self.ekf_x + K * y
-        self.ekf_P = (np.eye(2) - np.outer(K, H)) @ self.ekf_P
-        
-        return self.ekf_x[0]  # 返回估计的f_actual
     
     ###################################################
     # 接下来是UAV数学模型的更新函数
@@ -1086,6 +990,36 @@ class Controller:
         next_state = state + state_update * self.dt 
         self.pos_ref = next_state.flatten()[:3]
         self.vel_ref = next_state.flatten()[3:]
+
+    
+    def calculate_Eh(self, z):
+        """计算 Sanchez-Cuevas 系数 E_h"""
+        R = 0.06    # 桨叶半径
+        d = 0.25    # 对角轴距
+        b = 0.32    # 机体宽度
+        R, d, b = R, d, b
+        Kb = 0.5
+        # 防止 z 过小导致分母为 0 (设置安全高度阈值)
+        z_safe = max(z, 0.05)
+        
+        term1 = 1 - (R / (4 * z_safe)) ** 2 - R ** 2 * (z_safe / np.sqrt((d ** 2 + 4 * z_safe ** 2) ** 3))
+        term2 = (R ** 2 / 2) * (z_safe / np.sqrt((2 * d ** 2 + 4 * z_safe ** 2) ** 3))
+        term3 = 2 * R ** 2 * (z_safe / np.sqrt((b ** 2 + 4 * z_safe ** 2) ** 3)) * Kb
+        
+        # Eh = (1 / (term1 - term2 - term3)) - 1
+        eh = (np.power(term1 - term2 - term3, -1) - 1)
+        return eh
+
+
+
+
+
+
+
+
+
+
+
 
 
     ###########################################
@@ -1112,6 +1046,7 @@ class Controller:
         self.att = self.att_error + state_des_old.att
         self.ang = self.ang_error + state_des_old.ang
 
+        # NFC 相关
         if self.controller_flag == 'NFC_flare':
             action = self.NFC_flare(obs_flag, state_des)
         elif self.controller_flag == 'NFC_model':
@@ -1119,6 +1054,7 @@ class Controller:
         elif self.controller_flag == 'NFC_gazebo':
             action = self.NFC_gazebo(obs_flag, state_des)
 
+        # MRAC 相关
         elif self.controller_flag == 'MRAC':
             self.ref_input = self.pos_des
             self.model_linear_update()
@@ -1135,10 +1071,14 @@ class Controller:
             self.vel_ref = self.vel_ref_all[index]
             self.ref_input = self.ref_input_all[index]
             action = self.RL_MRAC_gazebo(obs_flag, state_des) 
+        elif self.controller_flag == 'RL_MRAC_landing_flare':
+            index = round(self.time / self.dt)
+            self.pos_ref = self.pos_ref_all[index]
+            self.vel_ref = self.vel_ref_all[index]
+            self.ref_input = self.ref_input_all[index]
+            action = self.mrac_controller(obs_flag, state_des)  
 
-        elif self.controller_flag == 'NFC_regressor':
-            action = self.NFC_regressor(obs_flag, state_des)
-
+        # RL 相关
         elif self.controller_flag == 'RL_full_model':
             action = self.RL_full_model(obs_flag)
         elif self.controller_flag == 'RL_model':

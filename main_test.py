@@ -35,19 +35,23 @@ env_name = {
 }
 
 # 选择控制算法，以及应用平台
-platform = 'model'  # 可选: 'model', 'nomodel', 'flare', 'gazebo', 'real'
-control_name = 'RL'    # 可选: 'NFC', 'PID', 'RL'
-trajectory_name = 'horizon_star'   # Candidate: smooth_curve, horizon_eight, waypoint, horizon_circle, *bezier, spiral, horizon_star
+platform = 'flare'  # 可选: 'model', 'nomodel', 'flare', 'gazebo', 'real'
+algorithm = 'RL_MRAC_landing'    # 可选: 'NFC', 'RL', 'RL_MRAC', 'RL_MRAC_landing'
+control_name = f"{algorithm}_{platform}"
+trajectory_name = 'smooth_landing'   # 可选: smooth_curve, smooth_landing, horizon_eight, waypoint, horizon_circle, bezier, spiral, horizon_flower, horizon_star, smooth_landing
 
-drone = env_name.get(platform)(duration=50) # 仿真时间
-controller1 = Controller(controller_flag='NFC')
-controller2 = Controller(controller_flag=f"{control_name}_{platform}" )
+# 存储文件路径
+# save_path = sys.path[0] + '/Data/' + control_name + '_01' 
+save_path = sys.path[0] + '/Data/test' 
+
+drone = env_name.get(platform)(duration = 20) # 仿真时间
+controller1 = Controller(controller_flag='NFC_flare')
+controller2 = Controller(controller_flag=control_name)
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag=trajectory_name)
 
 
 log = defaultdict(list)  # 用于存储信息的字典
-
 np.set_printoptions(precision=3, suppress=True, floatmode='fixed', linewidth=150)  # 全局调整 NumPy 数组的打印格式
 
 #########################################################
@@ -64,9 +68,11 @@ while (drone.state.time <= drone.duration):
     if drone.state.time < 10.0:
         desired_trajectory = desired_trajectory1
         controller = controller2
+        drone.log_flag = False
     else:
         desired_trajectory = desired_trajectory2
         controller = controller2
+        drone.log_flag = True
 
 
     # 获取当前时刻的期望轨迹的信息
@@ -139,7 +145,7 @@ print(f"Total Cost Real Time: {round(time.perf_counter() - start_timestamp, 4)}s
 # 保存为 CSV 文件
 ####################################
 
-save_path = sys.path[0] + '/Data/RL_MRAC_flare'
+# save_path = sys.path[0] + '/Data/RL_MRAC_flare'
 
 # 2. 将 list 转换为 numpy array (保持你原有的预处理)
 for key in log:

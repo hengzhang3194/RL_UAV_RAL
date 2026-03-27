@@ -36,8 +36,8 @@ def load_csv_data(file_path='/Data/RL_flare.csv'):
     加载csv文件，返回一个字典，包含所有数据。
     自动处理动态维度的 theta_hat 参数。
     '''
-    load_path = sys.path[0] + file_path
-    df = pd.read_csv(load_path)
+    
+    df = pd.read_csv(file_path)
 
     # 2. 创建基础 log 字典
     log = {
@@ -104,15 +104,14 @@ def load_npz_data(file_path='/Data/RL_MRAC_flare.npz'):
     '''
     加载csv文件，返回一个字典，包含所有的数据
     '''
-    load_path = sys.path[0] + file_path
-    data = np.load(load_path)
+    data = np.load(file_path)
 
     # 恢复成 log 形式
     log = {}
     if 'kx' in data:
         log["kx"] = [kx.reshape(3, 6) for kx in data['kx']]
         log["kr"] = [kr.reshape(3, 3) for kr in data['kr']]
-        log["theta"] = [theta.reshape(6, 3) for theta in data['theta']]
+        log["theta"] = [theta.reshape(12, 3) for theta in data['theta']]
 
 
     # 示例：检查恢复的数据
@@ -953,15 +952,23 @@ def all_points_margin(data, margin=0.1):
 
 
 if __name__ == '__main__':
-    data_path = '/Data/RL_MRAC_flare'
-    # data_path = '/Data/NFC_real'
-    # data_path = '/Data/RL_data'
+    # 选择控制算法，以及应用平台
+    platform = 'flare'  # 可选: 'model', 'nomodel', 'flare', 'gazebo'
+    algorithm = 'RL_MRAC'    # 可选: 'NFC', 'RL', 'RL_MRAC'
+    control_name = f"{algorithm}_{platform}"
+
+    # 存储文件路径
+    # data_path = sys.path[0] + '/Data/' + control_name + '_01' 
+
+    # data_path = sys.path[0] + '/Data/RL_model_01'
+    # data_path = '/Data/RL_MRAC_flare_01'
+    data_path = sys.path[0] + '/Data/test'
 
 
     log = load_csv_data(data_path + '.csv')
     # log = load_csv_data_MRAC(path + '.csv')
     plot_pos_att(log)
-    # plot_force(log)
+    plot_force(log)
 
 
     # plot_throttle(log)

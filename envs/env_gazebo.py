@@ -192,7 +192,12 @@ class DroneEnv(gym.Env):
 
 
     def close(self):
-        self.flightModeService(custom_mode='AUTO.LAND')
+        # self.flightModeService(custom_mode='AUTO.LAND')
+        
+        # 任务结束后进入悬停模式
+        self.flightModeService(custom_mode='AUTO.LOITER') 
+        # 或者在某些版本中也叫
+        # self.flightModeService(custom_mode='HOLD')
 
 
 

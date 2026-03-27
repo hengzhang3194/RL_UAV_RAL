@@ -48,7 +48,7 @@ class DroneEnv(gym.Env):
         self.dt = 1.0 / attitude_frequency  # 控制采样间隔
         hovering_throttle = 0.4     # 悬停油门
         self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
-        self.action_last = np.zeros(3) # 上一时刻的action
+        self.actuator_tau = 0.02 # 电机时间常数 [s]
 
         # 设置状态约束边界
         self.DEG2RAD = math.pi / 180        # 0.017453292519943295
@@ -147,6 +147,13 @@ class DroneEnv(gym.Env):
         self.state.time += self.dt
         self.seq += 1
 
+
+        # 考虑控制器时延
+        if not hasattr(self, 'actual_action'):
+            self.actual_action = np.zeros(7)
+        alpha = min(self.dt / self.actuator_tau, 1.0)
+        self.actual_action = self.actual_action + alpha * (action - self.actual_action)
+        action = self.actual_action
         action_pos = action[0:3]
         self.throttle = action[3] * self.POTT
         self.tau_roll = action[4]
@@ -188,6 +195,9 @@ class DroneEnv(gym.Env):
                                       self.obs.ang], axis=0)
 
 
+        # 计算 reward
+        if not hasattr(self, 'action_last'):
+            self.action_last = np.zeros(3)
         reward = self.reward(self.obs, self.action_last, action_pos)
         self.action_last = action_pos
 

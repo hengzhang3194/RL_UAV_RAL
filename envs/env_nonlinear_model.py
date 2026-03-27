@@ -162,6 +162,7 @@ class DroneEnv(gym.Env):
                                       self.state.att], axis=0)
 
 
+        # 计算 reward
         if not hasattr(self, 'action_last'):
             self.action_last = np.zeros(3)
         reward = self.reward(self.obs, self.action_last, action_pos)
