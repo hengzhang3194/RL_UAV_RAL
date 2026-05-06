@@ -19,13 +19,14 @@ from envs.env_model import DroneEnv as DroneEnv_model
 # from envs.env_nonlinear_model import DroneEnv as DroneEnv_nomodel
 from envs.desired_trajectory import Desired_trajectory
 from envs.controller_att import Controller_Attitude
+from envs.model_configuration import DroneConfig
 
 import pandas as pd
 import pdb
 
-
+config = DroneConfig.get_model(model_name='P600', duration=30.0)  
 # drone = DroneEnv_flare(localhost=25556)
-drone = DroneEnv_model(localhost=25555)
+drone = DroneEnv_model(config=config)
 desired_trajectory = Desired_trajectory(trajectory_flag='horizon_eight')
 controller_att = Controller_Attitude(controller_flag='NFC_att')
 
@@ -69,8 +70,8 @@ while steps <= max_steps:
 
     obs, _ = drone.reset()
     obs_flag = False
-    mass = 1.32    # kg
-    inertial = np.array([0.003686, 0.003686, 0.006824])
+    mass = 3.3    # kg
+    inertial = np.array([0.056, 0.056, 0.1027])
 
 
     # 1. 质量随机化 (例如上下浮动 15%)
@@ -90,12 +91,12 @@ while steps <= max_steps:
         # 获取当前时刻的期望轨迹的信息
         state_des = desired_trajectory.get_desired_trajectory(drone.state.time)
 
-        action = agent.get_action(obs, deterministic=False)
+        action = agent.get_action(obs[:6], deterministic=False)
         next_obs = obs
 
         act_pos = np.zeros(3)
-        act_pos[0] = action[0] * 0.3 * drone.mass * drone.g
-        act_pos[1] = action[1] * 0.3 * drone.mass * drone.g
+        act_pos[0] = action[0] * 0.5 * drone.mass * drone.g
+        act_pos[1] = action[1] * 0.5 * drone.mass * drone.g
         act_pos[2] = (action[2] + 1) * drone.mass * drone.g
         pos = next_obs[0:3] + state_des.pos
         vel = next_obs[3:6] + state_des.vel
@@ -118,7 +119,7 @@ while steps <= max_steps:
             cumulative_reward += reward
                 
         reward = cumulative_reward
-        buffer.push(obs, action, reward, next_obs, terminated, truncated)      # 将数据存入缓冲区
+        buffer.push(obs[:6], action, reward, next_obs[:6], terminated, truncated)      # 将数据存入缓冲区
         obs = next_obs
         obs_flag = False
 

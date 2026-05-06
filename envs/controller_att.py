@@ -16,13 +16,18 @@ class Controller_Attitude:
     输出：1维力（机体坐标系）+3维力矩
     '''
 
-    def __init__(self, controller_flag='NFC_att'):
+    def __init__(self, controller_flag='NFC_att', config=None):
         # 无人机系统参数
-        self.mass = 1.32    # kg
-        self.inertial = np.diag([0.003686, 0.003686, 0.006824])
+        self.mass = config.mass    # 1.32 kg
+        self.g = config.g
+        self.inertial = config.inertial
         self.inertial_inv = np.linalg.inv(self.inertial)
-        self.g = 9.8
-        self.dt = 1 / 200
+
+        self.duration = config.duration     # 仿真时长
+        self.pos_att_power = config.pos_att_power
+        self.dt = config.dt  # 控制采样间隔
+        
+        
         
         self.DEG2RAD = math.pi / 180  # 0.01745
         self.RAD2DEG = 180 / math.pi     # 57.2958

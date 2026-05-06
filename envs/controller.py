@@ -15,16 +15,19 @@ import pdb
 
 class Controller:
 
-    def __init__(self, controller_flag='MRAC+NFC'):
+    def __init__(self, controller_flag='MRAC+NFC', config=None):
         # 无人机系统参数
-        self.mass = 1.32    # kg
-        self.inertial = np.diag([0.003686, 0.003686, 0.006824])
+        self.mass = config.mass    # 1.32 kg
+        self.g = config.g
+        self.inertial = config.inertial
         self.inertial_inv = np.linalg.inv(self.inertial)
-        self.g = 9.81
-        hovering_throttle = 0.4     # 悬停油门
-        self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
-        self.dt = 1 / 200
-        
+
+        self.duration = config.duration     # 仿真时长
+        self.pos_att_power = config.pos_att_power
+        self.dt = config.dt  # 控制采样间隔
+        self.POTT = config.POTT
+
+   
 
         self.DEG2RAD = math.pi / 180  # 0.01745
         self.RAD2DEG = 180 / math.pi     # 57.2958
@@ -42,7 +45,7 @@ class Controller:
 
         # 选择姿态环控制器，并获取所选控制器的参数
         self.controller_flag = controller_flag
-        self.controller_att = Controller_Attitude(controller_flag='NFC_att')
+        self.controller_att = Controller_Attitude(controller_flag='NFC_att', config=config)
         self.get_controller_parameters()
 
 
@@ -118,28 +121,14 @@ class Controller:
 
         
 
-        elif self.controller_flag in ['RL_model', 'RL_flare']:
+        elif self.controller_flag in ['RL_model', 'RL_flare', 'RL_gazebo']:
             # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 12
+            obs_dims = 6
             act_dims = 3
             hidden_size=[256, 256]
 
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/7800/pi.pth'
-
-            assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
-
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
-            self.pi_net.load_state_dict(torch.load(pi_model_path))
-            self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
-
-        elif self.controller_flag == 'RL_nomodel':
-            # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 15
-            act_dims = 3
-            hidden_size=[256, 256]
-
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260310_123730/ckpts/latest/pi.pth'
+            # pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/7800/pi.pth'
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260503_010019/ckpts/latest/pi.pth'
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -176,21 +165,6 @@ class Controller:
             self.pi_net.load_state_dict(torch.load(pi_model_path))
             self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
 
-        elif self.controller_flag == 'RL_gazebo':
-            # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 15
-            act_dims = 3
-            hidden_size=[256, 256]
-
-            # pi_model_path = 'policy/rl_8h/pi.pth'
-            pi_model_path = 'Data/pi.pth'
-
-            assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
-
-            self.device = 'cpu'
-            self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
-            self.pi_net.load_state_dict(torch.load(pi_model_path))
-            self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
 
         elif self.controller_flag == 'RL_by_flare':
             # 位置环 RL，姿态环采取非线性反馈控制
@@ -491,10 +465,12 @@ class Controller:
             # pdb.set_trace()
             self.force_controller = thrust
 
-        action = self.force_controller
+        action_pos = self.force_controller
 
         # 计算姿态环控制器
-        action = self.controller_att.get_controller(action, self.att, self.ang, self.att_des, self.ang_des)
+        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
+
+        action = np.concatenate([action_pos, action_att], axis=0)
 
         return action
     
@@ -582,13 +558,14 @@ class Controller:
             self.kr = self.kr + (kr_update.T) * self.dt * 10
             self.theta = self.theta + (theta_update) * self.dt * 10
             # self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
-
-            theta_term = self.theta.T @ phi + self.f_gef_estimate
-            self.G = np.array([0, 0, self.mass * self.g - theta_term[2][0]]).reshape(-1, 1)
-
             # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
+            
             # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G
 
+            # Sindy library
+            theta_term = self.theta.T @ phi + self.f_gef_estimate
+            self.f_gef_estimate = theta_term[2][0]
+            self.G = np.array([0, 0, self.mass * self.g - self.f_gef_estimate]).reshape(-1, 1)
             thrust = self.kx @ state + self.kr @ ref_input + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
 
             # Control constrain
@@ -759,10 +736,9 @@ class Controller:
     def RL_model(self, obs_flag, state_des):
         if obs_flag:
             obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            # obs = np.hstack((self.pos_error, self.vel_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
-            std = log_std.exp()
-            
             action = torch.tanh(mean).detach().cpu().numpy()
                 
             # RL controller 处理
@@ -770,11 +746,7 @@ class Controller:
             self.force_controller = action * force_scale
 
         action_pos = self.force_controller + self.mass * np.array([0, 0, self.g]) - 3.0 * self.pos - 3.0 * self.vel
-
-        # 计算姿态环控制器
         action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
-
-
         action = np.concatenate([action_pos, action_att], axis=0)
 
         return action
@@ -784,11 +756,10 @@ class Controller:
     #####################################
     def RL_flare(self, obs_flag, state_des):
         if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            obs = np.hstack((self.pos_error, self.vel_error))
+            # obs = np.hstack((self.pos_error, self.vel_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
-            std = log_std.exp()
-            
             action = torch.tanh(mean).detach().cpu().numpy()
                 
             # RL controller 处理
@@ -798,10 +769,8 @@ class Controller:
 
         # action_pos = self.force_controller
         action_pos = self.force_controller - 3.0 * self.pos - 3.0 * self.vel
-
-        # 计算姿态环控制器
         action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
-        action = action_att
+        action = np.concatenate([action_pos, action_att], axis=0)
 
         return action
     
@@ -809,11 +778,9 @@ class Controller:
     # RL for Gazebo
     #####################################
     def RL_gazebo(self, obs_flag, state_des):
-        obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error, self.att))
+        obs = np.hstack((self.pos_error, self.vel_error))
         obs_tensor = torch.FloatTensor(obs).to(self.device)
         mean, log_std = self.pi_net(obs_tensor)
-        std = log_std.exp()
-
         action = torch.tanh(mean).detach().cpu().numpy()
             
         # RL controller 处理
@@ -821,42 +788,11 @@ class Controller:
         force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
         self.force_controller = action * force_scale
 
-        action_pos = self.force_controller
-
-        # 计算姿态环控制器
+        action_pos = self.force_controller - 3.0 * self.pos - 3.0 * self.vel
         thrust_body, att_des = self.controller_att.Decomposition1(action_pos, state_des.att)
 
         # 返回值是：机身推力 + 3维期望姿态
         action = np.array([thrust_body, att_des[0], att_des[1], att_des[2]])
-
-        return action
-    
-    #####################################
-    # RL for 12-D nonlinear model
-    #####################################
-    def RL_nomodel(self, obs_flag, state_des):
-        if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error, self.att))
-            obs_tensor = torch.FloatTensor(obs).to(self.device)
-            mean, log_std = self.pi_net(obs_tensor)
-            std = log_std.exp()
-            
-            action = torch.tanh(mean).detach().cpu().numpy()
-                
-            # RL controller 处理
-            action[2] += 1.0
-            force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
-            self.force_controller = action * force_scale 
-
-        action_pos = self.force_controller
-
-        # 计算姿态环控制器
-        att_des = state_des.att
-        ang_des = state_des.ang
-        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, att_des, ang_des)
-
-
-        action = np.concatenate([action_pos, action_att], axis=0)
 
         return action
     
@@ -911,10 +847,11 @@ class Controller:
             self.force_controller[1] = action[1] * 0.5 * self.mass * self.g
             self.force_controller[2] = (action[2]+1) * self.mass * self.g
             
-        action = self.force_controller
+        action_pos = self.force_controller
 
         # 计算姿态环控制器
-        action = self.controller_att.NFC_att(action, self.att, self.ang, state_des)
+        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
+        action = action_att
 
         return action
     
@@ -929,28 +866,11 @@ class Controller:
         obs = 1 * np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
         obs_tensor = torch.FloatTensor(obs).to(self.device)
         mean, log_std = self.pi_net(obs_tensor)
-        std = log_std.exp()
-        
-
-        deterministic=True
-        if deterministic:
-            action = torch.tanh(mean)
-        else:
-            z = Normal(0, 1).sample(mean.shape).to(self.device)
-            action = torch.tanh(mean + std * z)
-        action = action.detach().cpu().numpy()
+        action = torch.tanh(mean).detach().cpu().numpy()
             
         # RL controller 处理
         scale = np.array([13, 1, 1, 1])    # 13 = 1.32*9.8
         action = scale * np.array([action[0], action[1], action[2], action[3]])  # [Thrust, Torque_x, Torque_y, Torque_z]
-
-            # # 是否进行后处理
-            # self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
-            # thrust = action_sacle + self.G
-            # thrust = action_sacle + self.G - self.Am_k*pos - self.Am_k*vel
-            # thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            # thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            # thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
 
         return action
     
@@ -996,7 +916,7 @@ class Controller:
         """计算 Sanchez-Cuevas 系数 E_h"""
         R = 0.06    # 桨叶半径
         d = 0.25    # 对角轴距
-        b = 0.32    # 机体宽度
+        b = 0.6    # 机体宽度
         R, d, b = R, d, b
         Kb = 0.5
         # 防止 z 过小导致分母为 0 (设置安全高度阈值)
@@ -1085,8 +1005,6 @@ class Controller:
             action = self.RL_model(obs_flag, state_des)
         elif self.controller_flag == 'RL_flare':
             action = self.RL_flare(obs_flag, state_des)
-        elif self.controller_flag == 'RL_nomodel':
-            action = self.RL_nomodel(obs_flag, state_des)
         elif self.controller_flag == 'RL_corl':
             action = self.RL_corl(obs_flag, state_des)
         elif self.controller_flag == 'RL_gazebo':

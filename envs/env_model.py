@@ -31,23 +31,19 @@ def convert_observation_to_space(observation):
 # Class of uav dynamic linear model 
 ######################################
 class DroneEnv(gym.Env):
-    def __init__(self, localhost: int = 25556, duration = 30.0):
+    def __init__(self, config = None):
         super().__init__()
 
-
         # 无人机系统参数
-        self.mass = 1.32    # kg
-        self.g = 9.81
-        self.inertial = np.diag([0.003686, 0.003686, 0.006824])
+        self.mass = config.mass    # 1.32 kg
+        self.g = config.g
+        self.inertial = config.inertial
         self.inertial_inv = np.linalg.inv(self.inertial)
 
-        self.duration = duration     # 仿真时长
-        position_frequency = 20.0
-        attitude_frequency = 200.0
-        self.pos_att_power = round(attitude_frequency / position_frequency)
-        self.dt = 1.0 / attitude_frequency  # 控制采样间隔
-        hovering_throttle = 0.4     # 悬停油门
-        self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
+        self.duration = config.duration     # 仿真时长
+        self.pos_att_power = config.pos_att_power
+        self.dt = config.dt  # 控制采样间隔
+        self.POTT = config.POTT
         self.actuator_tau = 0.02 # 电机时间常数 [s]
 
         # 设置状态约束边界
@@ -76,7 +72,7 @@ class DroneEnv(gym.Env):
         
         # self.observation_space = convert_observation_to_space(self.reset()[0])
         self.reset()
-        self.observation_space = gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(12,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(6,), dtype=np.float32)
         self.action_space      = gym.spaces.Box(low=-1.0, high=1.0, shape=(3,), dtype=np.float32)  # avoid the open range caused by 'tanh' in SAC algorithm
         # self.action_space = gym.spaces.Box(low=np.array([-9.8, -20, -20, -2]), high=np.array([30, 20, 20, 2]))
 
@@ -166,7 +162,7 @@ class DroneEnv(gym.Env):
         state_pos = np.concatenate([self.state.pos, self.state.vel], axis=0)
         # state_update = self.Am @ state_pos + self.B @ action_pos + np.array([0, 0, 0, 0, 0, -self.g])
         state_update = self.A @ state_pos + self.B @ action_pos + np.array([0, 0, 0, 0, 0, -self.g])
-        next_state = state_pos + state_update * self.dt 
+        next_state = state_pos + state_update * self.dt
         (self.state.pos, self.state.vel) = next_state.reshape(2, 3)
 
 

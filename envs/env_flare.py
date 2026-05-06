@@ -32,7 +32,7 @@ def convert_observation_to_space(observation):
 ######################################
 class DroneEnv(gym.Env):
 
-    def __init__(self, localhost: int = 25556, duration = 30.0):
+    def __init__(self, localhost: int = 25556, config = None):
         super().__init__()
         self.flare = arcpy.Controller('localhost', localhost)
         self.px4 = self.flare.get_object_by_path('Drone/core/px4')
@@ -40,18 +40,16 @@ class DroneEnv(gym.Env):
 
 
         # 无人机系统参数
-        self.mass = 1.32    # kg
-        self.g = 9.81
-        self.inertial = np.diag([0.003686, 0.003686, 0.006824])
+        self.mass = config.mass    # 1.32 kg
+        self.g = config.g
+        self.inertial = config.inertial
         self.inertial_inv = np.linalg.inv(self.inertial)
 
-        self.duration = duration     # 仿真时长
-        position_frequency = 20.0
-        attitude_frequency = 200.0
-        self.pos_att_power = round(attitude_frequency / position_frequency)
-        self.dt = 1.0 / attitude_frequency  # 控制采样间隔
-        hovering_throttle = 0.4     # 悬停油门
-        self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
+        self.duration = config.duration     # 仿真时长
+        self.pos_att_power = config.pos_att_power
+        self.dt = config.dt  # 控制采样间隔
+        self.POTT = config.POTT
+
 
         # 设置状态约束边界
         self.DEG2RAD = math.pi / 180        # 0.017453292519943295
@@ -88,7 +86,7 @@ class DroneEnv(gym.Env):
 
         # define initial state
         self.state = State_struct(
-                    pos=np.array([0.0, 0.0, 1.0]),
+                    pos=np.array([0.0, 0.0, 0.0]),
                     vel=np.array([0.0, 0.0, 0.0]),
                     att=np.array([0.0, 0.0, 0.0]),
                     ang=np.array([0.0, 0.0, 0.0]),
@@ -129,10 +127,12 @@ class DroneEnv(gym.Env):
         self.sim_time += steps_per_call * self.sim_dt
 
         # Simulate a control period, giving action (dict), and requesting output (list).
-        self.throttle = action[0] * self.POTT
-        self.tau_roll = action[1]
-        self.tau_pitch = action[2]
-        self.tau_yaw = action[3]
+        action_pos = action[0:3]
+        self.throttle = action[3] * self.POTT
+        self.tau_roll = action[4]
+        self.tau_pitch = action[5]
+        self.tau_yaw = action[6]
+
         input = (3.0, self.tau_roll, self.tau_pitch, self.tau_yaw, self.throttle)
         reply = self.flare.simulate(steps_per_call,  {self.px4: input}, [self.body_info])
 

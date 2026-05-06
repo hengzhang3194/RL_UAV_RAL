@@ -25,6 +25,7 @@ from envs.env_model import DroneEnv as DroneEnv_model
 from envs.env_nonlinear_model import DroneEnv as DroneEnv_nomodel
 from envs.desired_trajectory import Desired_trajectory
 from envs.controller import Controller
+from envs.model_configuration import DroneConfig
 # from envs.env_gazebo import DroneEnv
 
 env_name = {
@@ -34,25 +35,32 @@ env_name = {
     'gazebo': DroneEnv_gazebo
 }
 
-# 选择控制算法，以及应用平台
-platform = 'flare'  # 可选: 'model', 'nomodel', 'flare', 'gazebo', 'real'
-algorithm = 'RL_MRAC_landing'    # 可选: 'NFC', 'RL', 'RL_MRAC', 'RL_MRAC_landing'
+############################################
+## 选择控制算法，以及应用平台
+# 应用平台: 'model', 'nomodel', 'flare', 'gazebo', 'real'
+# 控制算法: 'NFC', 'RL', 'RL_MRAC', 'RL_MRAC_landing'
+# 参考轨迹: smooth_curve, smooth_landing, horizon_eight, waypoint, horizon_circle, bezier, spiral, horizon_flower, horizon_star
+# 无人机配置：P600，M0
+platform = 'flare'
+algorithm = 'RL'    
 control_name = f"{algorithm}_{platform}"
-trajectory_name = 'smooth_landing'   # 可选: smooth_curve, smooth_landing, horizon_eight, waypoint, horizon_circle, bezier, spiral, horizon_flower, horizon_star, smooth_landing
+trajectory_name = 'horizon_eight'
+config = DroneConfig.get_model(model_name='P600', duration=30.0)  
 
-# 存储文件路径
-# save_path = sys.path[0] + '/Data/' + control_name + '_01' 
-save_path = sys.path[0] + '/Data/test' 
-
-drone = env_name.get(platform)(duration = 20) # 仿真时间
-controller1 = Controller(controller_flag='NFC_flare')
-controller2 = Controller(controller_flag=control_name)
+# 加载无人机、控制器、参考轨迹信息
+drone = env_name.get(platform)(config=config) # 仿真时间
+controller1 = Controller(controller_flag='NFC_flare', config=config)
+controller2 = Controller(controller_flag=control_name, config=config)
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag=trajectory_name)
+############################################
 
-
+## 存储文件路径
+# save_path = sys.path[0] + '/Data/' + control_name + '_01' 
+save_path = sys.path[0] + '/Data/test' 
 log = defaultdict(list)  # 用于存储信息的字典
-np.set_printoptions(precision=3, suppress=True, floatmode='fixed', linewidth=150)  # 全局调整 NumPy 数组的打印格式
+np.set_printoptions(precision=3, suppress=True, floatmode='fixed', linewidth=150)  # 全局调整数组的打印格式
+
 
 #########################################################
 # Simulation loop (simulation time, not physical time)
@@ -68,7 +76,7 @@ while (drone.state.time <= drone.duration):
     if drone.state.time < 10.0:
         desired_trajectory = desired_trajectory1
         controller = controller2
-        drone.log_flag = False
+        drone.log_flag = True
     else:
         desired_trajectory = desired_trajectory2
         controller = controller2
@@ -90,13 +98,15 @@ while (drone.state.time <= drone.duration):
 
 
 
+
     # step simulator
     obs, reward, terminated, truncated, info = drone.step(action, state_des)
+    print(f"Obs is {obs}.")
     obs = info["obs"]
     obs_flag = info["obs_flag"]
     last_export_time = export_time
     # pdb.set_trace()
-    print(f"Obs is {obs.pos}.")
+    
 
 
     #################################################

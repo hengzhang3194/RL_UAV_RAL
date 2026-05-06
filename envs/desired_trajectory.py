@@ -196,7 +196,7 @@ class Desired_trajectory:
             self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
             self.state.ang = np.array([0.0, 0.0, 0.0])
 
-        elif self.trajectory_flag == 'smooth_landing':
+        elif self.trajectory_flag == 'smooth_landingxxx':
             '''
             给定一个z轴的起点和终点，创建一个随指数衰减的起飞/landing曲线。
             '''
@@ -261,7 +261,7 @@ class Desired_trajectory:
             如果是直接给MRAC运行, 则 scale_x = 5.0, scale_y = 2.5  
             '''
             z_start = 1.0
-            z_end = 0.35
+            z_end = 0.22
             T = 8.0  # 任务执行时间
 
             if not hasattr(self, 'start_time'):
@@ -270,11 +270,11 @@ class Desired_trajectory:
             # 获取该轨迹的相对时间
             tau = t - self.start_time
 
-            if t >= T:
+            if tau >= T:
                 # 超过时间后，停在终点
                 pz, vz, az = z_end, 0.0, 0.0
             else:
-                s = t / T   # s 是归一化进度 [0, 1]
+                s = tau / T   # s 是归一化进度 [0, 1]
                 poly_p = 10 * s**3 - 15 * s**4 + 6 * s**5
                 poly_v = (30 * s**2 - 60 * s**3 + 30 * s**4) / T
                 poly_a = (60 * s - 180 * s**2 + 120 * s**3) / (T**2)
