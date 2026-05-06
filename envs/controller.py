@@ -15,7 +15,7 @@ import pdb
 
 class Controller:
 
-    def __init__(self, controller_flag='MRAC+NFC', config=None):
+    def __init__(self, controller_flag='MRAC', config=None):
         # 无人机系统参数
         self.mass = config.mass    # 1.32 kg
         self.g = config.g
@@ -128,7 +128,7 @@ class Controller:
             hidden_size=[256, 256]
 
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/7800/pi.pth'
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260503_010019/ckpts/latest/pi.pth'
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260503_010019/ckpts/7200/pi.pth'
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -575,10 +575,10 @@ class Controller:
             
             self.force_controller = thrust.flatten()
 
-        action = self.force_controller
+        action_pos = self.force_controller
+        action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
 
-        # 计算姿态环控制器
-        action = self.controller_att.get_controller(action, self.att, self.ang, self.att_des, self.ang_des)
+        action = np.concatenate([action_pos, action_att], axis=0)
 
         return action
     
@@ -735,8 +735,8 @@ class Controller:
     #####################################
     def RL_model(self, obs_flag, state_des):
         if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
-            # obs = np.hstack((self.pos_error, self.vel_error))
+            # obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            obs = np.hstack((self.pos_error, self.vel_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             action = torch.tanh(mean).detach().cpu().numpy()
@@ -756,8 +756,8 @@ class Controller:
     #####################################
     def RL_flare(self, obs_flag, state_des):
         if obs_flag:
+            # obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
             obs = np.hstack((self.pos_error, self.vel_error))
-            # obs = np.hstack((self.pos_error, self.vel_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             action = torch.tanh(mean).detach().cpu().numpy()

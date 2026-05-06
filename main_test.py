@@ -42,7 +42,7 @@ env_name = {
 # 参考轨迹: smooth_curve, smooth_landing, horizon_eight, waypoint, horizon_circle, bezier, spiral, horizon_flower, horizon_star
 # 无人机配置：P600，M0
 platform = 'flare'
-algorithm = 'RL'    
+algorithm = 'RL_MRAC_landing'    
 control_name = f"{algorithm}_{platform}"
 trajectory_name = 'horizon_eight'
 config = DroneConfig.get_model(model_name='P600', duration=30.0)  

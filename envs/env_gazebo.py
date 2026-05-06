@@ -26,21 +26,21 @@ from sensor_msgs.msg import Imu
 
 
 class DroneEnv(gym.Env):
-    def __init__(self, localhost: int = 25556, duration = 30.0):
+    def __init__(self, config = None):
         super().__init__()
 
         # 无人机系统参数
-        self.mass = 1.32    # kg
-        self.g = 9.81
-        self.inertial = np.diag([0.003686, 0.003686, 0.006824])
+        self.mass = config.mass    # 1.32 kg
+        self.g = config.g
+        self.inertial = config.inertial
         self.inertial_inv = np.linalg.inv(self.inertial)
 
-
-        self.duration = duration     # 仿真时长
-        position_frequency = 20.0
+        self.duration = config.duration     # 仿真时长
+        position_frequency = config.position_frequency
+        self.pos_att_power = config.pos_att_power
         self.dt = 1.0 / position_frequency  # 控制采样间隔
-        hovering_throttle = 0.2     # 悬停油门
-        self.POTT = hovering_throttle / (self.mass * self.g)     # 无人机的油门与推力的比例系数
+        self.POTT = config.POTT
+  
 
         # 设置状态约束边界
         self.DEG2RAD = math.pi / 180        # 0.017453292519943295
