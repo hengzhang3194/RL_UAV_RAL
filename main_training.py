@@ -28,7 +28,7 @@ config = DroneConfig.get_model(model_name='P600', duration=30.0)
 # drone = DroneEnv_flare(localhost=25556)
 drone = DroneEnv_model(config=config)
 desired_trajectory = Desired_trajectory(trajectory_flag='horizon_eight')
-controller_att = Controller_Attitude(controller_flag='NFC_att')
+controller_att = Controller_Attitude(controller_flag='NFC_att', config=config)
 
 log = defaultdict(list)  # 用于存储信息的字典
 
@@ -74,16 +74,16 @@ while steps <= max_steps:
     inertial = np.array([0.056, 0.056, 0.1027])
 
 
-    # 1. 质量随机化 (例如上下浮动 15%)
-    mass_factor = np.random.uniform(0.8, 1.2)
-    drone.mass = mass * mass_factor
+    # # 1. 质量随机化 (例如上下浮动 15%)
+    # mass_factor = np.random.uniform(0.8, 1.2)
+    # drone.mass = mass * mass_factor
     
-    # 2. 转动惯量随机化 (通常各轴独立扰动 10%)
-    # 惯量必须保持正定，所以建议使用乘法扰动
-    inertia_factors = np.random.uniform(0.8, 1.2, size=3)
-    current_inertia = inertial * inertia_factors
-    drone.inertial = np.diag(current_inertia)
-    drone.inertial_inv = np.linalg.inv(drone.inertial)
+    # # 2. 转动惯量随机化 (通常各轴独立扰动 10%)
+    # # 惯量必须保持正定，所以建议使用乘法扰动
+    # inertia_factors = np.random.uniform(0.8, 1.2, size=3)
+    # current_inertia = inertial * inertia_factors
+    # drone.inertial = np.diag(current_inertia)
+    # drone.inertial_inv = np.linalg.inv(drone.inertial)
     
     start_timestamp = time.perf_counter()
     # pdb.set_trace()
@@ -91,7 +91,7 @@ while steps <= max_steps:
         # 获取当前时刻的期望轨迹的信息
         state_des = desired_trajectory.get_desired_trajectory(drone.state.time)
 
-        action = agent.get_action(obs[:6], deterministic=False)
+        action = agent.get_action(obs, deterministic=False)
         next_obs = obs
 
         act_pos = np.zeros(3)
@@ -119,7 +119,7 @@ while steps <= max_steps:
             cumulative_reward += reward
                 
         reward = cumulative_reward
-        buffer.push(obs[:6], action, reward, next_obs[:6], terminated, truncated)      # 将数据存入缓冲区
+        buffer.push(obs, action, reward, next_obs, terminated, truncated)      # 将数据存入缓冲区
         obs = next_obs
         obs_flag = False
 

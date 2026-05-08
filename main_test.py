@@ -44,7 +44,7 @@ env_name = {
 platform = 'flare'
 algorithm = 'RL_MRAC_landing'    
 control_name = f"{algorithm}_{platform}"
-trajectory_name = 'horizon_eight'
+trajectory_name = 'smooth_landing'
 config = DroneConfig.get_model(model_name='P600', duration=30.0)  
 
 # 加载无人机、控制器、参考轨迹信息

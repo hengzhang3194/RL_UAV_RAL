@@ -72,7 +72,7 @@ class DroneEnv(gym.Env):
         
         # self.observation_space = convert_observation_to_space(self.reset()[0])
         self.reset()
-        self.observation_space = gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(6,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(12,), dtype=np.float32)
         self.action_space      = gym.spaces.Box(low=-1.0, high=1.0, shape=(3,), dtype=np.float32)  # avoid the open range caused by 'tanh' in SAC algorithm
         # self.action_space = gym.spaces.Box(low=np.array([-9.8, -20, -20, -2]), high=np.array([30, 20, 20, 2]))
 

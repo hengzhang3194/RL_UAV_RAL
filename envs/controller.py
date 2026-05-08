@@ -123,12 +123,12 @@ class Controller:
 
         elif self.controller_flag in ['RL_model', 'RL_flare', 'RL_gazebo']:
             # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 6
+            obs_dims = 12
             act_dims = 3
             hidden_size=[256, 256]
 
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/7800/pi.pth'
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260503_010019/ckpts/7200/pi.pth'
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260508_005409/ckpts/latest/pi.pth'
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -267,10 +267,10 @@ class Controller:
             self.theta_gef = np.zeros((6)) 
 
             ############ 从文件中读取控制器参数的初值
-            # data_gain = np.load('Data/test.npz')
-            # self.kx = data_gain['kx'][-1].reshape(3, 6)
-            # self.kr = data_gain['kr'][-1].reshape(3, 3)
-            # self.theta = data_gain['theta'][-1].reshape(7, 3)
+            data_gain = np.load('Data/test.npz')
+            self.kx = data_gain['kx'][-1].reshape(3, 6)
+            self.kr = data_gain['kr'][-1].reshape(3, 3)
+            self.theta = data_gain['theta'][-1].reshape(6, 3)
 
             # load RL data
             RL_data = pd.read_csv('Data/RL_data.csv')
@@ -565,7 +565,7 @@ class Controller:
             # Sindy library
             theta_term = self.theta.T @ phi + self.f_gef_estimate
             self.f_gef_estimate = theta_term[2][0]
-            self.G = np.array([0, 0, self.mass * self.g - self.f_gef_estimate]).reshape(-1, 1)
+            self.G = np.array([0, 0, self.mass * self.g + self.f_gef_estimate]).reshape(-1, 1)
             thrust = self.kx @ state + self.kr @ ref_input + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
 
             # Control constrain
@@ -735,8 +735,8 @@ class Controller:
     #####################################
     def RL_model(self, obs_flag, state_des):
         if obs_flag:
-            # obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
-            obs = np.hstack((self.pos_error, self.vel_error))
+            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            # obs = np.hstack((self.pos_error, self.vel_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             action = torch.tanh(mean).detach().cpu().numpy()
@@ -756,8 +756,8 @@ class Controller:
     #####################################
     def RL_flare(self, obs_flag, state_des):
         if obs_flag:
-            # obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
-            obs = np.hstack((self.pos_error, self.vel_error))
+            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            # obs = np.hstack((self.pos_error, self.vel_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             action = torch.tanh(mean).detach().cpu().numpy()

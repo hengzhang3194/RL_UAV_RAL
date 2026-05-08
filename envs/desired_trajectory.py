@@ -230,7 +230,7 @@ class Desired_trajectory:
             p(s) = z_start + (z_end - z_start) * (10s^3 - 15s^4 + 6s^5)
             '''
             z_start = 0.0
-            z_end = 1.0
+            z_end = 1.5
             T = 8.0  # 任务执行时间
 
             if t >= T:
@@ -257,11 +257,8 @@ class Desired_trajectory:
 
 
         elif self.trajectory_flag == 'smooth_landing':
-            '''
-            如果是直接给MRAC运行, 则 scale_x = 5.0, scale_y = 2.5  
-            '''
-            z_start = 1.0
-            z_end = 0.22
+            z_start = 1.5
+            z_end = 0.2
             T = 8.0  # 任务执行时间
 
             if not hasattr(self, 'start_time'):
