@@ -53,11 +53,12 @@ controller1 = Controller(controller_flag='NFC_flare', config=config)
 controller2 = Controller(controller_flag=control_name, config=config)
 desired_trajectory1 = Desired_trajectory(trajectory_flag='smooth_curve')
 desired_trajectory2 = Desired_trajectory(trajectory_flag=trajectory_name)
+desired_trajectory3 = Desired_trajectory(trajectory_flag='smooth_landing_2')
 ############################################
 
 ## 存储文件路径
 # save_path = sys.path[0] + '/Data/' + control_name + '_01' 
-save_path = sys.path[0] + '/Data/test' 
+save_path = sys.path[0] + '/Data/test0' 
 log = defaultdict(list)  # 用于存储信息的字典
 np.set_printoptions(precision=3, suppress=True, floatmode='fixed', linewidth=150)  # 全局调整数组的打印格式
 
@@ -73,12 +74,16 @@ last_export_time = time.time()
 while (drone.state.time <= drone.duration):
     export_time = time.time()
 
-    if drone.state.time < 10.0:
+    if drone.state.time < 8.0:
         desired_trajectory = desired_trajectory1
         controller = controller2
         drone.log_flag = True
+    # elif drone.state.time < 20.0:
+    #     desired_trajectory = desired_trajectory2
+    #     controller = controller2
+    #     drone.log_flag = True
     else:
-        desired_trajectory = desired_trajectory2
+        desired_trajectory = desired_trajectory3
         controller = controller2
         drone.log_flag = True
 

@@ -111,7 +111,7 @@ def load_npz_data(file_path='/Data/RL_MRAC_flare.npz'):
     if 'kx' in data:
         log["kx"] = [kx.reshape(3, 6) for kx in data['kx']]
         log["kr"] = [kr.reshape(3, 3) for kr in data['kr']]
-        log["theta"] = [theta.reshape(12, 3) for theta in data['theta']]
+        log["theta"] = [theta.reshape(6, 3) for theta in data['theta']]
 
 
     # 示例：检查恢复的数据
@@ -962,7 +962,7 @@ if __name__ == '__main__':
 
     # data_path = sys.path[0] + '/Data/RL_model_01'
     # data_path = '/Data/RL_MRAC_flare_01'
-    data_path = sys.path[0] + '/Data/test'
+    data_path = sys.path[0] + '/Data/test0'
 
 
     log = load_csv_data(data_path + '.csv')
@@ -973,19 +973,19 @@ if __name__ == '__main__':
 
     # plot_throttle(log)
     # plot_3d_trajectory(log['pos'], log['vel'], log["pos_des"])
-    plot_2d_trajectory_with_time(log['pos'], log["pos_des"])
+    # plot_2d_trajectory_with_time(log['pos'], log["pos_des"])
     # plot_3d_trajectory_with_error2(log['pos'], log["pos_des"])
     # plot_3d_trajectory_with_nearest_error_and_matches(log['pos'], log["pos_des"])
 
     # # 画每一圈的RMS的柱状图
-    error_signal = log['pos'] - log['pos_des']
-    xy_rms_results, xyz_rms_results = compute_segmented_rms(error_signal, start_index=2000, segment_length=4000)  # segment_length是要分段的数据的长度
-    plot_rms_comparison(xy_rms_results, xyz_rms_results)
+    # error_signal = log['pos'] - log['pos_des']
+    # xy_rms_results, xyz_rms_results = compute_segmented_rms(error_signal, start_index=2000, segment_length=4000)  # segment_length是要分段的数据的长度
+    # plot_rms_comparison(xy_rms_results, xyz_rms_results)
 
 
     # # npz_path = '/Data/controller_gains.npz'
-    # log2 = load_npz_data(data_path + '.npz')
-    # plot_controller_gains(log2)
+    log2 = load_npz_data(data_path + '.npz')
+    plot_controller_gains(log2)
 
     plt.show()
 

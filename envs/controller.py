@@ -267,7 +267,7 @@ class Controller:
             self.theta_gef = np.zeros((6)) 
 
             ############ 从文件中读取控制器参数的初值
-            data_gain = np.load('Data/test.npz')
+            data_gain = np.load('Data/test0.npz')
             self.kx = data_gain['kx'][-1].reshape(3, 6)
             self.kr = data_gain['kr'][-1].reshape(3, 3)
             self.theta = data_gain['theta'][-1].reshape(6, 3)
@@ -545,6 +545,8 @@ class Controller:
             term6 = (self.throttle**2) * Eh
             phi = np.array([term1, term2, term3, term4, term5, term6]).reshape(-1,1)
 
+            self.theta_gef = np.array([2.405, -1.928, 5.793, -0.561, -0.596, 1.512])
+
             kx_update = self.gamma_x @ state @ error.T @ self.P @ self.B
             kr_update = self.gamma_r @ ref_input @ error.T @ self.P @ self.B
             theta_update = - self.gamma_theta @ phi @ error.T @ self.P @ self.B
@@ -563,9 +565,12 @@ class Controller:
             # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G
 
             # Sindy library
-            theta_term = self.theta.T @ phi + self.f_gef_estimate
-            self.f_gef_estimate = theta_term[2][0]
-            self.G = np.array([0, 0, self.mass * self.g + self.f_gef_estimate]).reshape(-1, 1)
+            theta_term = self.theta.T @ phi
+            self.f_gef_estimate += theta_term[2][0] * self.dt * 10
+            # theta_term = self.theta_gef @ phi
+            # pdb.set_trace()
+            # self.f_gef_estimate += theta_term[0] * self.dt * 10
+            self.G = np.array([0, 0, self.mass * self.g - self.f_gef_estimate]).reshape(-1, 1)
             thrust = self.kx @ state + self.kr @ ref_input + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
 
             # Control constrain
@@ -575,8 +580,12 @@ class Controller:
             
             self.force_controller = thrust.flatten()
 
+            # if self.time > 10.0:
+            #     pdb.set_trace()
+
         action_pos = self.force_controller
         action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
+        self.throttle = action_att[0] * self.POTT
 
         action = np.concatenate([action_pos, action_att], axis=0)
 
@@ -914,10 +923,12 @@ class Controller:
     
     def calculate_Eh(self, z):
         """计算 Sanchez-Cuevas 系数 E_h"""
-        R = 0.06    # 桨叶半径
-        d = 0.25    # 对角轴距
-        b = 0.6    # 机体宽度
-        R, d, b = R, d, b
+        # R = 0.06    # 桨叶半径
+        # d = 0.25    # 对角轴距
+        # b = 0.6    # 机体宽度
+        R = 0.19
+        d = 0.45
+        b = 0.6
         Kb = 0.5
         # 防止 z 过小导致分母为 0 (设置安全高度阈值)
         z_safe = max(z, 0.05)

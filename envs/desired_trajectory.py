@@ -229,8 +229,8 @@ class Desired_trajectory:
             五次多项式公式，确保初始和结束的速度平滑
             p(s) = z_start + (z_end - z_start) * (10s^3 - 15s^4 + 6s^5)
             '''
-            z_start = 0.0
-            z_end = 1.5
+            z_start = 0.2
+            z_end = 1.0
             T = 8.0  # 任务执行时间
 
             if t >= T:
@@ -258,7 +258,7 @@ class Desired_trajectory:
 
         elif self.trajectory_flag == 'smooth_landing':
             z_start = 1.5
-            z_end = 0.2
+            z_end = 1.0
             T = 8.0  # 任务执行时间
 
             if not hasattr(self, 'start_time'):
@@ -289,6 +289,38 @@ class Desired_trajectory:
             self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
             self.state.ang = np.array([0.0, 0.0, 0.0])
 
+        elif self.trajectory_flag == 'smooth_landing_2':
+            z_start = 1.0
+            z_end = 0.22
+            T = 8.0  # 任务执行时间
+
+            if not hasattr(self, 'start_time'):
+                self.start_time = t
+            
+            # 获取该轨迹的相对时间
+            tau = t - self.start_time
+
+            if tau >= T:
+                # 超过时间后，停在终点
+                pz, vz, az = z_end, 0.0, 0.0
+            else:
+                s = tau / T   # s 是归一化进度 [0, 1]
+                poly_p = 10 * s**3 - 15 * s**4 + 6 * s**5
+                poly_v = (30 * s**2 - 60 * s**3 + 30 * s**4) / T
+                poly_a = (60 * s - 180 * s**2 + 120 * s**3) / (T**2)
+
+                dist = z_end - z_start
+                pz = z_start + dist * poly_p
+                vz = dist * poly_v
+                az = dist * poly_a
+
+            px, vx, ax = 0.0, 0.0, 0.0
+            py, vy, ay = 0.0, 0.0, 0.0
+            self.state.pos = np.array([px, py, pz])
+            self.state.vel = np.array([vx, vy, vz])
+            self.state.acc = np.array([ax, ay, az])
+            self.state.att = np.array([0.0, 0.0, 0.0]) * self.DEG2RAD
+            self.state.ang = np.array([0.0, 0.0, 0.0])
 
 
         elif self.trajectory_flag == 'horizon_flower':

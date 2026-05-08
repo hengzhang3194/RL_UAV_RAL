@@ -86,7 +86,7 @@ class DroneEnv(gym.Env):
 
         # define initial state
         self.state = State_struct(
-                    pos=np.array([0.0, 0.0, 0.0]),
+                    pos=np.array([0.0, 0.0, 0.2]),
                     vel=np.array([0.0, 0.0, 0.0]),
                     att=np.array([0.0, 0.0, 0.0]),
                     ang=np.array([0.0, 0.0, 0.0]),
