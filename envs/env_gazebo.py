@@ -20,7 +20,7 @@ from geometry_msgs.msg import PoseStamped, TwistStamped
 from mavros_msgs.msg import State, AttitudeTarget, PositionTarget, VFR_HUD
 
 from mavros_msgs.srv import CommandBool, SetMode
-import time, PyKDL
+import time
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
 

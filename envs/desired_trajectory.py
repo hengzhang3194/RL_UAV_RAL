@@ -231,7 +231,7 @@ class Desired_trajectory:
             '''
             z_start = 0.2
             z_end = 1.0
-            T = 8.0  # 任务执行时间
+            T = 4.0  # 任务执行时间
 
             if t >= T:
                 # 超过时间后，停在终点
@@ -259,7 +259,7 @@ class Desired_trajectory:
         elif self.trajectory_flag == 'smooth_landing':
             z_start = 1.5
             z_end = 1.0
-            T = 8.0  # 任务执行时间
+            T = 4.0  # 任务执行时间
 
             if not hasattr(self, 'start_time'):
                 self.start_time = t
@@ -292,7 +292,7 @@ class Desired_trajectory:
         elif self.trajectory_flag == 'smooth_landing_2':
             z_start = 1.0
             z_end = 0.22
-            T = 8.0  # 任务执行时间
+            T = 4.0  # 任务执行时间
 
             if not hasattr(self, 'start_time'):
                 self.start_time = t

@@ -74,11 +74,11 @@ last_export_time = time.time()
 while (drone.state.time <= drone.duration):
     export_time = time.time()
 
-    if drone.state.time < 8.0:
+    if drone.state.time < 10.0:
         desired_trajectory = desired_trajectory1
         controller = controller2
         drone.log_flag = True
-    # elif drone.state.time < 20.0:
+    # elif drone.state.time < 22.0:
     #     desired_trajectory = desired_trajectory2
     #     controller = controller2
     #     drone.log_flag = True

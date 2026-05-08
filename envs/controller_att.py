@@ -3,8 +3,6 @@ import math, time
 from scipy.linalg import solve_continuous_lyapunov
 from scipy.integrate import solve_ivp
 
-import torch
-from torch.distributions import Normal
 from envs.utils import *
 
 import pdb

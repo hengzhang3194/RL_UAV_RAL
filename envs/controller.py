@@ -573,6 +573,8 @@ class Controller:
             self.G = np.array([0, 0, self.mass * self.g - self.f_gef_estimate]).reshape(-1, 1)
             thrust = self.kx @ state + self.kr @ ref_input + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
 
+            print(f'GEF is: {self.f_gef_estimate}.')
+
             # Control constrain
             thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
             thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
