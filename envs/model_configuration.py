@@ -13,7 +13,7 @@ class DroneConfig:
     inertial: np.ndarray
     hovering_throttle: float
     duration: float = 30.0
-    position_frequency: float = 20.0
+    position_frequency: float = 50.0
     attitude_frequency: float = 200.0
     g: float = 9.81
 
@@ -21,6 +21,7 @@ class DroneConfig:
     def __post_init__(self):
         # 计算控制采样间隔
         self.dt = 1.0 / self.attitude_frequency
+        self.dt_pos = 1.0 / self.position_frequency
         # 计算位置环与姿态环的频率倍数
         self.pos_att_power = round(self.attitude_frequency / self.position_frequency)
         self.POTT = self.hovering_throttle / (self.mass * self.g)

@@ -739,7 +739,7 @@ def plot_force(log):
     time = log["time"]
     force = log["force_controller"] # Shape (N, 3)
     
-    fig, axs = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    fig, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     fig.suptitle('Controller Output Forces (Force vs Time)', fontsize=16)
 
     labels = ['Force X (N)', 'Force Y (N)', 'Force Z (N)']
@@ -984,10 +984,10 @@ if __name__ == '__main__':
 
 
     # # npz_path = '/Data/controller_gains.npz'
-    log2 = load_npz_data(data_path + '.npz')
-    plot_controller_gains(log2)
+    # log2 = load_npz_data(data_path + '.npz')
+    # plot_controller_gains(log2)
 
-    plt.show()
+    # plt.show()
 
 
 

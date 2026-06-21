@@ -281,6 +281,8 @@ class Desired_trajectory:
                 vz = dist * poly_v
                 az = dist * poly_a
 
+                
+
             px, vx, ax = 0.0, 0.0, 0.0
             py, vy, ay = 0.0, 0.0, 0.0
             self.state.pos = np.array([px, py, pz])
@@ -291,8 +293,8 @@ class Desired_trajectory:
 
         elif self.trajectory_flag == 'smooth_landing_2':
             z_start = 1.0
-            z_end = 0.22
-            T = 4.0  # 任务执行时间
+            z_end = 0.24
+            T = 20.0  # 任务执行时间
 
             if not hasattr(self, 'start_time'):
                 self.start_time = t
@@ -305,14 +307,20 @@ class Desired_trajectory:
                 pz, vz, az = z_end, 0.0, 0.0
             else:
                 s = tau / T   # s 是归一化进度 [0, 1]
-                poly_p = 10 * s**3 - 15 * s**4 + 6 * s**5
-                poly_v = (30 * s**2 - 60 * s**3 + 30 * s**4) / T
-                poly_a = (60 * s - 180 * s**2 + 120 * s**3) / (T**2)
+                # poly_p = 10 * s**3 - 15 * s**4 + 6 * s**5
+                # poly_v = (30 * s**2 - 60 * s**3 + 30 * s**4) / T
+                # poly_a = (60 * s - 180 * s**2 + 120 * s**3) / (T**2)
 
-                dist = z_end - z_start
-                pz = z_start + dist * poly_p
-                vz = dist * poly_v
-                az = dist * poly_a
+                # dist = z_end - z_start
+                # pz = z_start + dist * poly_p
+                # vz = dist * poly_v
+                # az = dist * poly_a
+
+                # HBL code
+                C = 1.0 # how fast to land
+                az = np.exp(-C * tau) * (C ** 3 * tau - C ** 2) * (z_start - z_end)
+                vz = np.exp(-C * tau) * (-C ** 2 * tau) * (z_start - z_end)
+                pz = np.exp(-C * tau) * (1 + C * tau) * (z_start - z_end) + z_end
 
             px, vx, ax = 0.0, 0.0, 0.0
             py, vy, ay = 0.0, 0.0, 0.0

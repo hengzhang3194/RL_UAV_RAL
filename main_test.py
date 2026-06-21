@@ -42,10 +42,10 @@ env_name = {
 # 参考轨迹: smooth_curve, smooth_landing, horizon_eight, waypoint, horizon_circle, bezier, spiral, horizon_flower, horizon_star
 # 无人机配置：P600，M0
 platform = 'flare'
-algorithm = 'RL_MRAC_landing'    
+algorithm = 'RL'    
 control_name = f"{algorithm}_{platform}"
-trajectory_name = 'smooth_landing'
-config = DroneConfig.get_model(model_name='P600', duration=30.0)  
+trajectory_name = 'horizon_eight'
+config = DroneConfig.get_model(model_name='P600', duration=40.0)  
 
 # 加载无人机、控制器、参考轨迹信息
 drone = env_name.get(platform)(config=config) # 仿真时间
@@ -74,7 +74,7 @@ last_export_time = time.time()
 while (drone.state.time <= drone.duration):
     export_time = time.time()
 
-    if drone.state.time < 10.0:
+    if drone.state.time < 20.0:
         desired_trajectory = desired_trajectory1
         controller = controller2
         drone.log_flag = True
@@ -82,8 +82,12 @@ while (drone.state.time <= drone.duration):
     #     desired_trajectory = desired_trajectory2
     #     controller = controller2
     #     drone.log_flag = True
+    # elif drone.state.time < 22:
+    #     desired_trajectory = desired_trajectory3
+    #     controller = controller1
+    #     drone.log_flag = True
     else:
-        desired_trajectory = desired_trajectory3
+        desired_trajectory = desired_trajectory2
         controller = controller2
         drone.log_flag = True
 
@@ -210,17 +214,17 @@ storage_dict = {
     'yaw_vel_d': log["ang_des"][:, 2],
 }
 
-# 4. 处理条件分支 (MRAC)
-if 'MRAC' in controller.controller_flag:
-    storage_dict.update({
-        'pos_xr': log["pos_ref"][:, 0], 'pos_yr': log["pos_ref"][:, 1], 'pos_zr': log["pos_ref"][:, 2],
-        'vel_xr': log["vel_ref"][:, 0], 'vel_yr': log["vel_ref"][:, 1], 'vel_zr': log["vel_ref"][:, 2],
-    })
+# # 4. 处理条件分支 (MRAC)
+# if 'MRAC' in controller.controller_flag:
+#     storage_dict.update({
+#         'pos_xr': log["pos_ref"][:, 0], 'pos_yr': log["pos_ref"][:, 1], 'pos_zr': log["pos_ref"][:, 2],
+#         'vel_xr': log["vel_ref"][:, 0], 'vel_yr': log["vel_ref"][:, 1], 'vel_zr': log["vel_ref"][:, 2],
+#     })
 
-if 'regressor' in controller.controller_flag:
-    storage_dict.update({
-        **{f'theta_{i}': log["theta_hat"][:, i] for i in range(log["theta_hat"].shape[1])}
-    })
+# if 'regressor' in controller.controller_flag:
+#     storage_dict.update({
+#         **{f'theta_{i}': log["theta_hat"][:, i] for i in range(log["theta_hat"].shape[1])}
+#     })
 
 # 5. 创建并保存
 df = pd.DataFrame(storage_dict)

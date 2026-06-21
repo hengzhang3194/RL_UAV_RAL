@@ -54,7 +54,8 @@ return_threshold = np.inf
 # buffer
 buffer = ReplayBuffer(buffer_size)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-agent = SacAgent(drone.observation_space.shape[0], drone.action_space.shape[0], hidden_dims, gamma, tau, q_lr, pi_lr, a_lr, device=device)
+# agent = SacAgent(drone.observation_space.shape[0], drone.action_space.shape[0], hidden_dims, gamma, tau, q_lr, pi_lr, a_lr, device=device)
+agent = SacAgent(6, 3, hidden_dims, gamma, tau, q_lr, pi_lr, a_lr, device=device)
 # agent.load_model('./tensorboard/Drone_model_Env_v0/SAC/abf467cf/ckpts/latest')    # 从某一个ckpt恢复训练，而不是从0开始
 
 
@@ -91,7 +92,7 @@ while steps <= max_steps:
         # 获取当前时刻的期望轨迹的信息
         state_des = desired_trajectory.get_desired_trajectory(drone.state.time)
 
-        action = agent.get_action(obs, deterministic=False)
+        action = agent.get_action(obs[0:6], deterministic=False)
         next_obs = obs
 
         act_pos = np.zeros(3)
@@ -119,7 +120,7 @@ while steps <= max_steps:
             cumulative_reward += reward
                 
         reward = cumulative_reward
-        buffer.push(obs, action, reward, next_obs, terminated, truncated)      # 将数据存入缓冲区
+        buffer.push(obs[0:6], action, reward, next_obs[0:6], terminated, truncated)      # 将数据存入缓冲区
         obs = next_obs
         obs_flag = False
 

@@ -25,6 +25,7 @@ class Controller:
         self.duration = config.duration     # 仿真时长
         self.pos_att_power = config.pos_att_power
         self.dt = config.dt  # 控制采样间隔
+        self.dt_pos = config.dt_pos
         self.POTT = config.POTT
 
    
@@ -34,7 +35,7 @@ class Controller:
 
         # Constraints
         self.MAX_ATT = 55 * self.DEG2RAD   # degree -> rad
-        self.MAX_ACC = 9.8 * 1.0
+        self.MAX_FORCE = 1.0 * self.g * self.mass
 
 
         self.force_controller = np.zeros(3)  # 控制器的位置环输出，惯性坐标系下XYZ方向的推力
@@ -123,12 +124,12 @@ class Controller:
 
         elif self.controller_flag in ['RL_model', 'RL_flare', 'RL_gazebo']:
             # 位置环 RL，姿态环采取非线性反馈控制
-            obs_dims = 12
+            obs_dims = 6
             act_dims = 3
             hidden_size=[256, 256]
 
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/7800/pi.pth'
-            pi_model_path = 'tensorboard/Drone_model/SAC/20260508_005409/ckpts/latest/pi.pth'
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260616_230603/ckpts/2200/pi.pth'
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
@@ -182,39 +183,13 @@ class Controller:
             self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
 
 
-
-
-        elif self.controller_flag == 'RL-DR':
-            # 位置环 RL random，姿态环采取非线性反馈控制，96dbf08c
-            controllers = []
-            controllers.append(Controller(name='drone_test/(v1)', ctrl_dt=0.05, action_range=1.0, pi_model_path='tensorboard/rl_random_8h/pi.pth', obs_dims=6, act_dims=3, hidden_size=[256, 256]))
-            self.rl_controller = controllers[-1]
-
-
-
-            data = self.load_trajectory_from_csv('Data/rl_data.csv')
-
-            # 参考轨迹
-            self.x_vals = np.array(data['/goal_position']['x'])
-            self.y_vals = np.array(data['/goal_position']['y'])
-            self.z_vals = np.array(data['/goal_position']['z'])
-            
-            self.vx_vals = np.array(data['/goal_velocity']['x'])
-            self.vy_vals = np.array(data['/goal_velocity']['y'])
-            self.vz_vals = np.array(data['/goal_velocity']['z'])
-
-            self.ax_vals = np.array(data['/action']['x']) * 6.0
-            self.ay_vals = np.array(data['/action']['y']) * 6.0
-            self.az_vals = np.array(data['/action']['z']) * 13.0
-
         elif self.controller_flag == 'RL_MRAC_flare':
             # system matrix of reference model
             self.Am_k = 3.0
             self.B = np.block([[np.zeros((3, 3))], 
                                [np.eye(3) / self.mass]])
             self.Am = np.block([[np.zeros((3, 3)), np.eye(3)], 
-                                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]
-                ])
+                                [-self.Am_k * np.eye(3), -self.Am_k * np.eye(3)]])
             
             # 位置环采取MRAC，姿态环采取非线性反馈控制
             self.kx = np.zeros((3, 6))
@@ -255,7 +230,7 @@ class Controller:
             self.kr = np.zeros((3, 3))
             self.theta = np.zeros((6, 3))  
 
-            self.gamma_x = 0.003 * np.eye(6)
+            self.gamma_x = 0.02 * np.eye(6)
             self.gamma_r = 0.003 * np.eye(3)
             self.gamma_theta = 0.03 * np.eye(6)
             self.Q = -900 * np.eye(6)  # Q 必须是对称的
@@ -308,7 +283,7 @@ class Controller:
             self.theta_gef = np.zeros((6)) 
 
             ############ 从文件中读取控制器参数的初值
-            # data_gain = np.load('Data/RL_MRAC_flare.npz')
+            # data_gain = np.load('Data/test.npz')
             # self.kx = data_gain['kx'][-1].reshape(3, 6)
             # self.kr = data_gain['kr'][-1].reshape(3, 3)
             # self.theta = data_gain['theta'][-1].reshape(6, 3)
@@ -410,7 +385,7 @@ class Controller:
             self.vel_error = self.vel - self.vel_des
 
             self.s_pos = self.vel_error + self.Gamma_pos * self.pos_error
-            self.sum_s_pos = self.sum_s_pos + self.s_pos * self.dt * 10 # 将采样时间从姿态环变成位置环
+            self.sum_s_pos = self.sum_s_pos + self.s_pos * self.dt_pos # 将采样时间从姿态环变成位置环
 
             self.M = self.mass * np.eye(3)
             self.G = self.mass * np.array([0, 0, self.g])
@@ -421,9 +396,7 @@ class Controller:
             thrust = np.dot(self.M, self.acc_ref) + self.G - self.K_pos * self.s_pos - self.Ki_pos * self.sum_s_pos - 3*self.mass * self.pos - 3*self.mass * self.vel
 
             # Control constrain
-            thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+            thrust = np.clip(thrust, [-self.MAX_FORCE, -self.MAX_FORCE, 0.0], [self.MAX_FORCE, self.MAX_FORCE, 1.8 * self.MAX_FORCE])
 
             # pdb.set_trace()
             self.force_controller = thrust
@@ -447,7 +420,7 @@ class Controller:
             self.vel_error = self.vel - self.vel_des
 
             self.s_pos = self.vel_error + self.Gamma_pos * self.pos_error
-            self.sum_s_pos = self.sum_s_pos + self.s_pos * self.dt * 10 # 将采样时间从姿态环变成位置环
+            self.sum_s_pos = self.sum_s_pos + self.s_pos * self.dt_pos # 将采样时间从姿态环变成位置环
 
             self.M = self.mass * np.eye(3)
             self.G = self.mass * np.array([0, 0, self.g])
@@ -458,9 +431,7 @@ class Controller:
             thrust = np.dot(self.M, self.acc_ref) + self.G - self.K_pos * self.s_pos - self.Ki_pos * self.sum_s_pos
 
             # Control constrain
-            thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+            thrust = np.clip(thrust, [-self.MAX_FORCE, -self.MAX_FORCE, 0.0], [self.MAX_FORCE, self.MAX_FORCE, 1.8 * self.MAX_FORCE])
 
             # pdb.set_trace()
             self.force_controller = thrust
@@ -484,7 +455,7 @@ class Controller:
         self.vel_error = self.vel - self.vel_des
 
         self.s_pos = self.vel_error + self.Gamma_pos * self.pos_error
-        self.sum_s_pos = self.sum_s_pos + self.s_pos * self.dt * 10 # 将采样时间从姿态环变成位置环
+        self.sum_s_pos += self.s_pos * self.dt_pos # 将采样时间从姿态环变成位置环
 
         self.M = self.mass * np.eye(3)
         self.G = self.mass * np.array([0, 0, self.g])
@@ -495,9 +466,7 @@ class Controller:
         thrust = np.dot(self.M, self.acc_ref) + self.G - self.K_pos * self.s_pos - self.Ki_pos * self.sum_s_pos
 
         # Control constrain
-        thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-        thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-        thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+        thrust = np.clip(thrust, [-self.MAX_FORCE, -self.MAX_FORCE, 0.0], [self.MAX_FORCE, self.MAX_FORCE, 1.8 * self.MAX_FORCE])
 
         # pdb.set_trace()
         self.force_controller = thrust
@@ -552,13 +521,13 @@ class Controller:
             theta_update = - self.gamma_theta @ phi @ error.T @ self.P @ self.B
 
             sigma = 0.001
-            # self.kx += (kx_update.T - sigma * self.kx) * self.dt * 10
-            # self.kr += (kr_update.T - sigma * self.kr) * self.dt * 10
-            # self.theta += (theta_update - sigma * self.theta) * self.dt * 10
+            # self.kx += (kx_update.T - sigma * self.kx) * self.dt_pos
+            # self.kr += (kr_update.T - sigma * self.kr) * self.dt_pos
+            # self.theta += (theta_update - sigma * self.theta) * self.dt_pos
 
-            self.kx = self.kx + (kx_update.T) * self.dt * 10
-            self.kr = self.kr + (kr_update.T) * self.dt * 10
-            self.theta = self.theta + (theta_update) * self.dt * 10
+            self.kx = self.kx + (kx_update.T) * self.dt_pos
+            self.kr = self.kr + (kr_update.T) * self.dt_pos
+            self.theta = self.theta + (theta_update) * self.dt_pos
             # self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
             # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
             
@@ -566,19 +535,17 @@ class Controller:
 
             # Sindy library
             theta_term = self.theta.T @ phi
-            self.f_gef_estimate += theta_term[2][0] * self.dt * 10
+            self.f_gef_estimate += theta_term[2][0] * self.dt_pos
             # theta_term = self.theta_gef @ phi
             # pdb.set_trace()
-            # self.f_gef_estimate += theta_term[0] * self.dt * 10
+            # self.f_gef_estimate += theta_term[0] * self.dt_pos
             self.G = np.array([0, 0, self.mass * self.g - self.f_gef_estimate]).reshape(-1, 1)
             thrust = self.kx @ state + self.kr @ ref_input + self.G - 3.0 * state[0:3] - 3.0 * state[3:6]
 
             print(f'GEF is: {self.f_gef_estimate}.')
 
             # Control constrain
-            thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+            thrust = np.clip(thrust, [-self.MAX_FORCE, -self.MAX_FORCE, 0.0], [self.MAX_FORCE, self.MAX_FORCE, 1.8 * self.MAX_FORCE])
             
             self.force_controller = thrust.flatten()
 
@@ -619,13 +586,14 @@ class Controller:
         kx_update = self.gamma_x @ state @ error.T @ self.P @ self.B
         kr_update = self.gamma_r @ ref_input @ error.T @ self.P @ self.B
         theta_update = - self.gamma_theta @ phi @ error.T @ self.P @ self.B
-        self.kx = self.kx + kx_update.T * self.dt * 10
-        self.kr = self.kr + kr_update.T * self.dt * 10
-        self.theta = self.theta + theta_update * self.dt * 10
+        self.kx = self.kx + kx_update.T * self.dt_pos
+        self.kr = self.kr + kr_update.T * self.dt_pos
+        self.theta = self.theta + theta_update * self.dt_pos
         # self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
 
-        theta_term = self.theta.T @ phi + self.f_gef_estimate
-        self.G = np.array([0, 0, self.mass * self.g - theta_term[2][0]]).reshape(-1, 1)
+        theta_term = self.theta.T @ phi
+        self.f_gef_estimate += theta_term[2][0] * self.dt_pos
+        self.G = np.array([0, 0, self.mass * self.g - self.f_gef_estimate]).reshape(-1, 1)
 
         # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G  - self.Am_k * state[0:3] - self.Am_k * state[3:6]
         # thrust = self.kx @ state + self.kr @ ref_input - self.theta.T @ phi + self.G
@@ -634,15 +602,14 @@ class Controller:
 
         
         # Control constrain
-        thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-        thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-        thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+        thrust = np.clip(thrust, [-self.MAX_FORCE, -self.MAX_FORCE, 0.0], [self.MAX_FORCE, self.MAX_FORCE, 1.8 * self.MAX_FORCE])
 
         self.force_controller = thrust.flatten()
 
 
         # 计算姿态环控制器
         thrust_body, att_des = self.controller_att.Decomposition1(self.force_controller, state_des.att)
+        self.throttle = thrust_body * self.POTT
 
         # 返回值是：机身推力 + 3维期望姿态
         action = np.array([thrust_body, att_des[0], att_des[1], att_des[2]])
@@ -712,9 +679,9 @@ class Controller:
             kx_update = self.gamma_x @ state @ error.T @ self.P @ self.B
             kr_update = self.gamma_r @ state_ref @ error.T @ self.P @ self.B
             theta_update = - self.gamma_theta @ phi @ error.T @ self.P @ self.B
-            self.kx = self.kx + kx_update.T * self.dt * 10
-            self.kr = self.kr + kr_update.T * self.dt * 10
-            self.theta = self.theta + theta_update * self.dt * 10
+            self.kx = self.kx + kx_update.T * self.dt_pos
+            self.kr = self.kr + kr_update.T * self.dt_pos
+            self.theta = self.theta + theta_update * self.dt_pos
             self.G = self.mass * np.array([0, 0, self.g]).reshape(-1, 1)
             pos = np.array(self.pos).reshape(-1, 1)
             vel = np.array(self.vel).reshape(-1, 1)
@@ -722,9 +689,7 @@ class Controller:
             thrust = self.kx @ state + self.kr @ state_ref - self.theta.T @ phi
             
             # Control constrain
-            thrust[0] = max(min(thrust[0], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[1] = max(min(thrust[1], self.MAX_ACC * self.mass), -self.MAX_ACC * self.mass)
-            thrust[2] = max(min(thrust[2], 1.8 * self.MAX_ACC * self.mass), 0.0)
+            thrust = np.clip(thrust, [-self.MAX_FORCE, -self.MAX_FORCE, 0.0], [self.MAX_FORCE, self.MAX_FORCE, 1.8 * self.MAX_FORCE])
 
             self.force_controller = thrust.flatten()
 
@@ -746,8 +711,8 @@ class Controller:
     #####################################
     def RL_model(self, obs_flag, state_des):
         if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
-            # obs = np.hstack((self.pos_error, self.vel_error))
+            # obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            obs = np.hstack((self.pos_error, self.vel_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             action = torch.tanh(mean).detach().cpu().numpy()
@@ -767,19 +732,17 @@ class Controller:
     #####################################
     def RL_flare(self, obs_flag, state_des):
         if obs_flag:
-            obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
-            # obs = np.hstack((self.pos_error, self.vel_error))
+            # obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
+            obs = np.hstack((self.pos_error, self.vel_error))
             obs_tensor = torch.FloatTensor(obs).to(self.device)
             mean, log_std = self.pi_net(obs_tensor)
             action = torch.tanh(mean).detach().cpu().numpy()
                 
             # RL controller 处理
-            action[2] += 1.0
             force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
-            self.force_controller = action * force_scale 
+            self.force_controller = action * force_scale
 
-        # action_pos = self.force_controller
-        action_pos = self.force_controller - 3.0 * self.pos - 3.0 * self.vel
+        action_pos = self.force_controller + self.mass * np.array([0, 0, self.g]) - 3.0 * self.pos - 3.0 * self.vel
         action_att = self.controller_att.get_controller(action_pos, self.att, self.ang, self.att_des, self.ang_des)
         action = np.concatenate([action_pos, action_att], axis=0)
 
@@ -912,34 +875,35 @@ class Controller:
 
     
     ###################################################
-    # 接下来是UAV数学模型的更新函数
+    # reference_model 的状态更新
     ###################################################
-    def model_linear_update(self):
+    def reference_model_update(self):
         state = np.hstack((self.pos_ref, self.vel_ref)).reshape(-1,1)
         input = self.ref_input.reshape(-1,1)
         state_update = self.Am @ state + self.B @ input
-        next_state = state + state_update * self.dt 
-        self.pos_ref = next_state.flatten()[:3]
-        self.vel_ref = next_state.flatten()[3:]
+        next_state = state + state_update * self.dt
+        self.pos_ref, self.vel_ref = next_state.reshape(2, 3)
 
     
     def calculate_Eh(self, z):
-        """计算 Sanchez-Cuevas 系数 E_h"""
-        # R = 0.06    # 桨叶半径
-        # d = 0.25    # 对角轴距
-        # b = 0.6    # 机体宽度
+        """
+        计算 Sanchez-Cuevas 系数 E_h，其中
+        - R 是桨叶半径
+        - d 是对角轴距
+        - b 是机体宽度
+        对于 P600 而言, R,d,b = 0.19, 0.45, 0.6 [m]
+        对于 M0 而言, R,d,b = 0.06, 0.25, 0.6 [m]
+        """
         R = 0.19
         d = 0.45
         b = 0.6
         Kb = 0.5
-        # 防止 z 过小导致分母为 0 (设置安全高度阈值)
-        z_safe = max(z, 0.05)
         
+        z_safe = max(z, 0.05)   # 防止 z 过小导致分母为 0.
         term1 = 1 - (R / (4 * z_safe)) ** 2 - R ** 2 * (z_safe / np.sqrt((d ** 2 + 4 * z_safe ** 2) ** 3))
         term2 = (R ** 2 / 2) * (z_safe / np.sqrt((2 * d ** 2 + 4 * z_safe ** 2) ** 3))
         term3 = 2 * R ** 2 * (z_safe / np.sqrt((b ** 2 + 4 * z_safe ** 2) ** 3)) * Kb
         
-        # Eh = (1 / (term1 - term2 - term3)) - 1
         eh = (np.power(term1 - term2 - term3, -1) - 1)
         return eh
 
@@ -959,7 +923,10 @@ class Controller:
     # Select controller by self.controller_flag
     ###########################################
     def get_controller(self, state, state_des_old, state_des, obs_flag):
-        '''和上面选择控制参数的名称一样，调用相关的控制器'''
+        '''
+        和上面选择控制参数的名称一样，调用相关的控制器
+        注意传入的state其实是state_error。
+        '''
         self.pos_error = state.pos
         self.vel_error = state.vel
         self.acc_error = state.acc
@@ -990,8 +957,10 @@ class Controller:
         # MRAC 相关
         elif self.controller_flag == 'MRAC':
             self.ref_input = self.pos_des
-            self.model_linear_update()
+            self.reference_model_update()
             action = self.mrac_controller(obs_flag, state_des)  
+
+        # RL_MRAC 相关
         elif self.controller_flag == 'RL_MRAC_flare':
             index = round(self.time / self.dt)
             self.pos_ref = self.pos_ref_all[index]
@@ -1012,16 +981,16 @@ class Controller:
             action = self.mrac_controller(obs_flag, state_des)  
 
         # RL 相关
-        elif self.controller_flag == 'RL_full_model':
-            action = self.RL_full_model(obs_flag)
         elif self.controller_flag == 'RL_model':
             action = self.RL_model(obs_flag, state_des)
         elif self.controller_flag == 'RL_flare':
             action = self.RL_flare(obs_flag, state_des)
-        elif self.controller_flag == 'RL_corl':
-            action = self.RL_corl(obs_flag, state_des)
         elif self.controller_flag == 'RL_gazebo':
             action = self.RL_gazebo(obs_flag, state_des)
+        elif self.controller_flag == 'RL_corl':
+            action = self.RL_corl(obs_flag, state_des)
+        elif self.controller_flag == 'RL_full_model':
+            action = self.RL_full_model(obs_flag)
         elif self.controller_flag == 'RL_by_flare':
             action = self.RL_by_flare(obs_flag, state_des)
 

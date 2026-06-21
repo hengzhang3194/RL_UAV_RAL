@@ -176,9 +176,11 @@ class DroneEnv(gym.Env):
         # 根据控制频率更新obs的值
         obs_flag = self.seq % self.pos_att_power == 1
         if obs_flag:
+            self.log_flag = True
             self.obs.get_error(self.state, state_des)
             self.obs_last.get_error(self.state, state_des)
         else:
+            self.log_flag = True
             self.obs.get_error(self.state, state_des)
             self.obs.pos = self.obs_last.pos
             self.obs.vel = self.obs_last.vel
