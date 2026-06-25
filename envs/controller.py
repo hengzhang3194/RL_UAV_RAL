@@ -137,17 +137,17 @@ class Controller:
             dummy_env.action_space = Box(low=-1.0, high=1.0, shape=(act_dims,), dtype=np.float32)
 
             # pi_model_path = 'tensorboard/Drone_model/SAC/20260306_132832/ckpts/7800/pi.pth'
-            # pi_model_path = 'tensorboard/Drone_model/SAC/20260622_235932/ckpts/2000/pi.pth'
-            pi_model_path = 'tensorboard/Drone_model\SB3_SAC/20260621_235931/ckpts/latest.zip'
+            pi_model_path = 'tensorboard/Drone_model/SAC/20260624_214717/ckpts/2600/pi.pth'
+            # pi_model_path = 'tensorboard/Drone_model\SB3_SAC/20260621_235931/ckpts/latest.zip'
 
             assert os.path.exists(pi_model_path), f"Path '{pi_model_path}' of policy model DOESN'T exist."
 
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            # self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
-            # self.pi_net.load_state_dict(torch.load(pi_model_path))
-            # self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
+            self.pi_net = ContinuousPolicyNetwork(obs_dims, act_dims, hidden_size).to(self.device)
+            self.pi_net.load_state_dict(torch.load(pi_model_path))
+            self.pi_net.eval()  # 切换到eval模式，让NN的预测更稳定。
 
-            self.model = SAC.load(pi_model_path, env=dummy_env)
+            # self.model = SAC.load(pi_model_path, env=dummy_env)
 
         elif self.controller_flag == 'RL_corl':
             # 位置环 RL，姿态环采取非线性反馈控制
@@ -746,10 +746,10 @@ class Controller:
         if obs_flag:
             # obs = np.hstack((self.pos_error, self.vel_error, self.att_error, self.ang_error))
             obs = np.hstack((self.pos_error, self.vel_error))
-            # obs_tensor = torch.FloatTensor(obs).to(self.device)
-            # mean, log_std = self.pi_net(obs_tensor)
-            # action = torch.tanh(mean).detach().cpu().numpy()
-            action, _ = self.model.predict(obs, deterministic=True)
+            obs_tensor = torch.FloatTensor(obs).to(self.device)
+            mean, log_std = self.pi_net(obs_tensor)
+            action = torch.tanh(mean).detach().cpu().numpy()
+            # action, _ = self.model.predict(obs, deterministic=True)
                 
             # RL controller 处理
             force_scale = np.array([0.5, 0.5, 1.0]) * self.mass * self.g
@@ -766,10 +766,10 @@ class Controller:
     #####################################
     def RL_gazebo(self, obs_flag, state_des):
         obs = np.hstack((self.pos_error, self.vel_error))
-        # obs_tensor = torch.FloatTensor(obs).to(self.device)
-        # mean, log_std = self.pi_net(obs_tensor)
-        # action = torch.tanh(mean).detach().cpu().numpy()
-        action, _ = self.model.predict(obs, deterministic=True)
+        obs_tensor = torch.FloatTensor(obs).to(self.device)
+        mean, log_std = self.pi_net(obs_tensor)
+        action = torch.tanh(mean).detach().cpu().numpy()
+        # action, _ = self.model.predict(obs, deterministic=True)
             
         # RL controller 处理
         action[2] += 1.0
