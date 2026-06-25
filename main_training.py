@@ -30,7 +30,6 @@ drone = DroneEnv_model(config=config)
 desired_trajectory = Desired_trajectory(trajectory_flag='horizon_eight')
 controller_att = Controller_Attitude(controller_flag='NFC_att', config=config)
 
-log = defaultdict(list)  # 用于存储信息的字典
 
 # 全局调整 NumPy 数组的打印格式
 np.set_printoptions(precision=3, suppress=True, floatmode='fixed', linewidth=150)  # useful for printing

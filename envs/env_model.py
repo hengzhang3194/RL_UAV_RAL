@@ -94,7 +94,6 @@ class DroneEnv(gym.Env):
         
         # initialize time
         self.state.time = 0.0
-        self.sim_time = 0.0     # flare仿真器上一次的时间
         self.seq = 0
         
         self.obs = State_struct()
@@ -107,24 +106,9 @@ class DroneEnv(gym.Env):
         return observation, self.obs
 
 
-
-
-    # def reward(self, obs):
-    #     yawcost = 0.5 * np.abs(obs.att[2])
-
-    #     # err_xy = np.linalg.norm(obs.pos[:2])
-    #     # err_z = np.abs(obs.pos[2])
-    #     # poscost = 10 / (err_xy + 1) + 20 / (err_z + 1)
-    #     poscost = 20 / (np.linalg.norm(obs.pos) + 1)
-    #     velcost = 1 / (np.linalg.norm(obs.vel) + 1)
-    #     z_cost = 5 * np.exp(-np.abs(obs.pos[2]))
-
-    #     cost = yawcost + poscost + velcost + z_cost
-
-    #     return cost
     def reward(self, obs, last_action, current_action):
         action_diff = np.linalg.norm(current_action - last_action)
-        smooth_cost = 2.0 * action_diff 
+        smooth_cost = 5.0 * action_diff 
 
         # 3. 动作幅值惩罚 (Control Effort)
         effort_cost = 0.1 * np.linalg.norm(current_action)
@@ -145,11 +129,12 @@ class DroneEnv(gym.Env):
 
 
         # 考虑控制器时延
-        if not hasattr(self, 'actual_action'):
-            self.actual_action = np.zeros(7)
-        alpha = min(self.dt / self.actuator_tau, 1.0)
-        self.actual_action = self.actual_action + alpha * (action - self.actual_action)
-        action = self.actual_action
+        # if not hasattr(self, 'actual_action'):
+        #     self.actual_action = np.zeros(7)
+        # alpha = min(self.dt / self.actuator_tau, 1.0)
+        # self.actual_action = self.actual_action + alpha * (action - self.actual_action)
+        # action = self.actual_action
+
         action_pos = action[0:3]
         self.throttle = action[3] * self.POTT
         self.tau_roll = action[4]
